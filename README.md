@@ -51,6 +51,15 @@ graph TD
 - **pyahocorasick** - Fast multi-pattern string matching
 - **InfluxDB3** (optional) - Time-series metrics storage
 
+## Production Resource Usage
+
+The bot currently runs as the only workload on a virtual machine with:
+
+- **2 vCPUs**
+- **8 GiB RAM**
+
+Observed over the last 30 days, CPU usage typically stays around **5–10%** and peaked at **45%**. RAM usage is usually about **1.6 GB**.
+
 ## Prerequisites
 
 - Python 3.12 or higher
