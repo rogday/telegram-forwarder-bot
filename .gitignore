@@ -1,0 +1,46 @@
+# 1. Ignore EVERYTHING (Files, folders, dotfiles)
+*
+
+# 2. Allow all directory structures 
+# (Necessary so Git can see into folders to find the files listed below)
+!*/
+
+# 3. ROOT FILES - Manually Allow
+!.gitignore
+!/README.md
+!/requirements.txt
+!/examples/static.yml
+!/examples/dynamic.yml
+!/run_instance.py
+!/deploy/compose.telemetry.yml
+!/deploy/compose.bot.yml
+!/examples/compose.env
+!/deploy/Dockerfile
+!/.dockerignore
+!/deploy/alloy.config
+!/deploy/grafana-dashboard.json
+!/examples/Dashboard.png
+
+
+# 4. SRC FILES - Manually Allow
+!/src/main.py
+!/src/telegram_forwarder_bot.py
+!/src/config.py
+!/src/config_watcher.py
+!/src/metrics.py
+!/src/monitoring.py
+!/src/notification.py
+!/src/storage.py
+!/src/app_logging.py
+
+# 5. TEST FILES - Manually Allow
+!/tests/__init__.py
+!/tests/conftest.py
+!/tests/storage/__init__.py
+!/tests/storage/test_correctness.py
+!/tests/storage/test_performance.py
+!/tests/storage/test_persistence.py
+!/tests/test_telegram_forwarder_bot.py
+!/tests/test_notification.py
+!/tests/test_config.py
+!/pytest.ini

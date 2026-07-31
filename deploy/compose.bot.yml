@@ -1,0 +1,27 @@
+name: "telegram-forwarder-${BOT_INSTANCE_ID:?Set BOT_INSTANCE_ID to the instance directory name}"
+
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile
+    image: telegram-forwarder-bot:local
+    restart: unless-stopped
+    init: true
+    working_dir: /app/instance
+    command:
+      - python
+      - /app/run_instance.py
+      - --env
+      - /app/instance
+    environment:
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - "${BOT_DATA_ROOT:-./data}/${BOT_INSTANCE_ID}:/app/instance"
+    networks:
+      - telemetry
+
+networks:
+  telemetry:
+    name: "${TELEMETRY_NETWORK_NAME:-telegram-forwarder-telemetry}"
+    external: true

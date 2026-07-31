@@ -1,0 +1,7 @@
+.git
+.compose.env
+.pytest_cache
+__pycache__
+data
+tests
+*.pyc

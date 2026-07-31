@@ -1,0 +1,31 @@
+notifier:
+  timezone: "UTC"
+
+storage_manager:
+  dedup_enabled: true
+  dedup_cache_size: 5000
+
+metric_recorder:
+  heartbeat_interval_seconds: 30
+  gc_interval_seconds: 10
+  metric_interval_seconds: 20
+
+monitor:
+  ping_interval_seconds: 5
+
+log_manager:
+  log_file_path: "logs/app.jsonl"
+  max_bytes: 10485760
+  max_files: 3
+  service_name: "telegram-forwarder-bot"
+  log_level: "INFO"
+  thirdparty_log_level: "WARNING"
+
+runtime_instrumentation_manager:
+  mode: "disabled"
+  profiling:
+    threshold_nanos: 200000
+  stack_dump:
+    frame_count_limit: 40
+    threshold_nanos: 150000
+    interval_nanos: 50000

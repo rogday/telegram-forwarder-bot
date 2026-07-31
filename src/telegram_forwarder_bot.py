@@ -1,0 +1,153 @@
+import asyncio
+
+from telethon import TelegramClient
+
+from app_logging import LogManager, get_logger
+from config import (
+    DynamicConfig,
+    StaticConfig,
+    load_dynamic_config,
+)
+from config_watcher import ConfigWatcher
+from metrics import (
+    RuntimeInstrumentationManager,
+    get_metric_recorder,
+    init_metric_recorder,
+)
+from monitoring import ChatResolver, Monitor
+from notification import Notifier
+from storage import StorageManager
+
+logger = get_logger(__name__)
+
+
+class TelegramForwarderBot:
+    def __init__(self) -> None:
+        self._static_config: StaticConfig = StaticConfig()  # type: ignore
+        self._dynamic_config: DynamicConfig = load_dynamic_config()
+
+        self._log_manager: LogManager = LogManager(
+            self._dynamic_config.log_manager)
+
+        self._static_config.client.session_dir.mkdir(
+            parents=True, exist_ok=True)
+        self._static_config.runtime_instrumentation_manager.profile_dir.mkdir(
+            parents=True, exist_ok=True)
+
+        self._config_watcher: ConfigWatcher = ConfigWatcher(
+            [self.on_config_update])
+
+        init_metric_recorder(self._static_config.metric_recorder,
+                             self._dynamic_config.metric_recorder)
+
+        self._runtime_instrumentation_manager: RuntimeInstrumentationManager = RuntimeInstrumentationManager(
+            static_config=self._static_config.runtime_instrumentation_manager,
+            dynamic_config=self._dynamic_config.runtime_instrumentation_manager)
+
+        self._user_client: TelegramClient = TelegramClient(
+            self._static_config.client.session_dir / "user",
+            api_id=self._static_config.client.api_id,
+            api_hash=self._static_config.client.api_hash,
+        )
+        self._bot_client: TelegramClient = TelegramClient(
+            self._static_config.client.session_dir / "bot",
+            api_id=self._static_config.client.api_id,
+            api_hash=self._static_config.client.api_hash,
+        )
+
+        self._storage_manager: StorageManager = StorageManager(
+            self._static_config.storage_manager,
+            self._dynamic_config.storage_manager)
+
+        self._chat_resolver: ChatResolver = ChatResolver(self._user_client)
+
+        self._monitor: Monitor = Monitor(
+            self._user_client, self._storage_manager.data, self._chat_resolver,
+            self._static_config.monitor,
+            self._dynamic_config.monitor)
+
+        match_queue = self._monitor.get_match_queue()
+
+        self._notifier: Notifier = Notifier(
+            self._bot_client,
+            self._storage_manager,
+            match_queue,
+            self._static_config.client.admin_id,
+            self._chat_resolver,
+            self._dynamic_config.notifier)
+
+    def on_config_update(self, config: DynamicConfig) -> None:
+        get_metric_recorder().on_config_update(config.metric_recorder)
+        self._storage_manager.on_config_update(config.storage_manager)
+        self._monitor.on_config_update(config.monitor)
+        self._notifier.on_config_update(config.notifier)
+        self._log_manager.on_config_update(config.log_manager)
+        self._runtime_instrumentation_manager.on_config_update(
+            config.runtime_instrumentation_manager)
+
+    async def _populate_chat_cache(self) -> None:
+        async def resolve_chat(username: str) -> None:
+            try:
+                await self._chat_resolver.resolve_cached(username)
+            except Exception:
+                logger.warning(
+                    "Skipping chat cache population after resolution error",
+                    identifier=username,
+                )
+
+        await asyncio.gather(
+            *(
+                # FIXME: should be list[str] instead, and add support for list of chats to resolver as well.
+                resolve_chat(chat.username)
+                for chat in self._storage_manager.data.list_chats()
+            )
+        )
+
+    async def start(self) -> None:
+        await get_metric_recorder().start()
+
+        self._config_watcher.start()
+
+        # Force update of storage in case of pending migrations
+        self._storage_manager.flush()
+
+        await self._user_client.start(  # type: ignore
+            phone=self._static_config.client.admin_phone)
+
+        await self._bot_client.start(  # type: ignore
+            bot_token=self._static_config.client.bot_token)
+
+        self._monitor.start()
+
+        logger.info("Clients and monitor started")
+
+        try:
+            await self._populate_chat_cache()
+
+            await asyncio.gather(
+                self._bot_client.run_until_disconnected(),  # type: ignore
+                self._user_client.run_until_disconnected(),  # type: ignore
+                self._notifier.listen()
+            )
+        except asyncio.CancelledError:
+            logger.info(
+                "Tasks cancelled, initiating shutdown sequence.")
+        except KeyboardInterrupt:
+            logger.info("Received interrupt signal.")
+
+    async def stop(self) -> None:
+        logger.info("Beginning teardown.")
+
+        try:
+            self._config_watcher.stop()
+        except Exception:
+            logger.exception("Failed to shut down config watcher.")
+
+        try:
+            await get_metric_recorder().stop()
+        except Exception:
+            logger.exception("Failed to shut down metric recorder.")
+
+        logger.info(
+            "Teardown complete. Flushing logs and terminating.")
+        await self._log_manager.stop()

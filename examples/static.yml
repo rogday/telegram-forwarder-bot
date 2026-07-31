@@ -1,0 +1,23 @@
+client:
+  api_id: 123456
+  api_hash: "your_api_hash_here"
+  bot_token: "your_bot_token_here"
+  admin_id: 123456789
+  admin_phone: "+1234567890"
+  session_dir: "./sessions"
+
+monitor:
+  match_queue_size: 1000
+
+storage_manager:
+  database_path: "./storage.db"
+
+metric_recorder:
+  telemetry_instance_id: "default-instance"
+  influxdb3:
+    endpoint:
+    token:
+    database_name:
+
+runtime_instrumentation_manager:
+  profile_dir: "./profiles"
