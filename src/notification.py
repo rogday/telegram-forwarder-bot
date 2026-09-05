@@ -184,9 +184,10 @@ class Notifier:
             parts = [p.strip().lower() for p in token.split("_") if p.strip()]
             positives = [p for p in parts if not p.startswith("!")]
             negatives = [p[1:] for p in parts if p.startswith("!")]
-            if positives or negatives:
-                keyword_groups.append(
-                    KeywordGroup.from_lists(positives, negatives))
+            if not positives or "" in negatives:
+                return _fail("Each group needs a positive keyword and non-empty exclusions")
+            keyword_groups.append(
+                KeywordGroup.from_lists(positives, negatives))
 
         if not keyword_groups:
             return _fail("No valid keywords found")
