@@ -125,6 +125,9 @@ class Monitor(RuntimeInstrumentationBase):
                 logger.exception("Ping request failed")
             await asyncio.sleep(self._dynamic_config.ping_interval_seconds)
 
+    # FIXME: Maybe add argument to decorator and somehow measure end to end latency from receive to send
+    @profileable
+    @traceable
     async def _handle_new_message_impl(self, event: events.NewMessage.Event) -> None:
         if self._storage.paused():
             return
@@ -196,9 +199,6 @@ class Monitor(RuntimeInstrumentationBase):
                 max_size=self._match_queue.maxsize,
             )
 
-    # FIXME: Maybe add argument to decorator and somehow measure end to end latency from receive to send
-    @profileable
-    @traceable
     async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
         try:
             await self._handle_new_message_impl(event)
