@@ -91,6 +91,8 @@ class Notifier:
 
         text = str((event.text or "").strip())
         parts = text.split()
+        if not parts:
+            return
         cmd = parts[0].lower()
 
         handlers: dict[str, Callable[[list[str]], Awaitable[str]]] = {
