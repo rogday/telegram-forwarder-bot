@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import random
 from dataclasses import dataclass
 
@@ -100,6 +101,7 @@ class Monitor(RuntimeInstrumentationBase):
         self._static_config = static_config
         self._dynamic_config = dynamic_config
 
+        self._force_sync_task: asyncio.Task | None = None
         self._client: TelegramClient = client
         self._storage: StorageData = storage
         self._match_queue: asyncio.Queue[MatchEvent] = asyncio.Queue(
@@ -110,6 +112,12 @@ class Monitor(RuntimeInstrumentationBase):
 
     def start(self) -> None:
         self._force_sync_task = asyncio.create_task(self._ping_loop())
+
+    async def stop(self) -> None:
+        if self._force_sync_task is not None:
+            self._force_sync_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._force_sync_task
 
     def on_config_update(self, dynamic_config: MonitorDynamicConfig) -> None:
         self._dynamic_config = dynamic_config

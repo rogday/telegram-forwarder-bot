@@ -145,20 +145,14 @@ class MetricRecorder(NoopMetricRecorder):
     async def stop(self) -> None:
         self._enabled = False
 
-        if self._heartbeat_task is not None:
-            self._heartbeat_task.cancel()
-            await self._heartbeat_task
-
-        if self._gc_task is not None:
-            self._gc_task.cancel()
-            await self._gc_task
-
-        if self._worker_task is not None:
-            self._worker_task.cancel()
-            await self._worker_task
+        tasks = [task for task in (
+            self._heartbeat_task, self._gc_task, self._worker_task
+        ) if task is not None]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._influxdb_client.flush)
         await loop.run_in_executor(None, self._influxdb_client.close)
 
     @retry(

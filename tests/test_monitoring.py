@@ -50,3 +50,16 @@ def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
     asyncio.run(exercise_modes())
     assert sessions == ['profiling', 'stack_dump']
     assert storage.paused.call_count == 4
+
+
+def test_monitor_stop_before_start_and_during_ping():
+    monitor = Monitor(Mock(), Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+
+    async def run():
+        await monitor.stop()
+        monitor._ping_loop = lambda: asyncio.sleep(60)
+        monitor.start()
+        await monitor.stop()
+        assert monitor._force_sync_task.cancelled()
+
+    asyncio.run(run())

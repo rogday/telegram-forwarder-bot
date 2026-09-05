@@ -124,11 +124,17 @@ class TelegramForwarderBot:
         try:
             await self._populate_chat_cache()
 
-            await asyncio.gather(
+            tasks = [asyncio.ensure_future(coroutine) for coroutine in (
                 self._bot_client.run_until_disconnected(),  # type: ignore
                 self._user_client.run_until_disconnected(),  # type: ignore
-                self._notifier.listen()
-            )
+                self._notifier.listen(),
+            )]
+            try:
+                await asyncio.gather(*tasks)
+            finally:
+                for task in tasks:
+                    task.cancel()
+                await asyncio.gather(*tasks, return_exceptions=True)
         except asyncio.CancelledError:
             logger.info(
                 "Tasks cancelled, initiating shutdown sequence.")
@@ -143,10 +149,16 @@ class TelegramForwarderBot:
         except Exception:
             logger.exception("Failed to shut down config watcher.")
 
-        try:
-            await get_metric_recorder().stop()
-        except Exception:
-            logger.exception("Failed to shut down metric recorder.")
+        for name, stop in (
+            ("monitor", self._monitor.stop),
+            ("user client", self._user_client.disconnect),
+            ("bot client", self._bot_client.disconnect),
+            ("metric recorder", get_metric_recorder().stop),
+        ):
+            try:
+                await stop()
+            except Exception:
+                logger.exception(f"Failed to shut down {name}.")
 
         logger.info(
             "Teardown complete. Flushing logs and terminating.")

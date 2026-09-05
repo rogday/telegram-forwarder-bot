@@ -36,3 +36,77 @@ def test_populate_chat_cache_skips_resolution_errors() -> None:
         "Skipping chat cache population after resolution error",
         identifier="deleted_chat",
     )
+
+
+def test_stop_continues_after_resource_failure():
+    bot = TelegramForwarderBot.__new__(TelegramForwarderBot)
+    bot._config_watcher = Mock()
+    bot._monitor = Mock(stop=AsyncMock())
+    bot._user_client = Mock(disconnect=AsyncMock(side_effect=RuntimeError('disconnect failed')))
+    bot._bot_client = Mock(disconnect=AsyncMock())
+    bot._log_manager = Mock(stop=AsyncMock())
+    recorder = Mock(stop=AsyncMock())
+
+    with patch('telegram_forwarder_bot.get_metric_recorder', return_value=recorder):
+        asyncio.run(bot.stop())
+
+    bot._config_watcher.stop.assert_called_once()
+    bot._monitor.stop.assert_awaited_once()
+    bot._bot_client.disconnect.assert_awaited_once()
+    recorder.stop.assert_awaited_once()
+    bot._log_manager.stop.assert_awaited_once()
+
+
+def test_runtime_error_cancels_other_running_tasks():
+    bot = TelegramForwarderBot.__new__(TelegramForwarderBot)
+    bot._config_watcher = Mock()
+    bot._storage_manager = Mock()
+    bot._static_config = Mock()
+    bot._monitor = Mock()
+    bot._populate_chat_cache = AsyncMock()
+    recorder = Mock(start=AsyncMock())
+    cancelled = []
+
+    async def wait_for_disconnect():
+        try:
+            await asyncio.Future()
+        finally:
+            cancelled.append(True)
+
+    async def fail():
+        await asyncio.sleep(0)
+        raise RuntimeError('listener failed')
+
+    bot._user_client = Mock(start=AsyncMock(), run_until_disconnected=wait_for_disconnect)
+    bot._bot_client = Mock(start=AsyncMock(), run_until_disconnected=wait_for_disconnect)
+    bot._notifier = Mock(listen=fail)
+
+    async def run():
+        try:
+            await bot.start()
+        except RuntimeError:
+            assert len(cancelled) == 2
+        else:
+            raise AssertionError('Runtime error was swallowed')
+
+    with patch('telegram_forwarder_bot.get_metric_recorder', return_value=recorder):
+        asyncio.run(run())
+
+
+
+def test_metrics_stop_immediately_after_start():
+    from config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
+    from metrics import MetricRecorder
+
+    client = Mock()
+    recorder = MetricRecorder(client, MetricRecorderStaticConfig(), MetricRecorderDynamicConfig())
+
+    async def run():
+        await recorder.start()
+        await recorder.stop()
+        assert all(task.done() for task in (
+            recorder._heartbeat_task, recorder._gc_task, recorder._worker_task))
+
+    asyncio.run(run())
+    client.close.assert_called_once()
+    client.flush.assert_not_called()
