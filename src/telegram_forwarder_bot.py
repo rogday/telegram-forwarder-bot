@@ -35,7 +35,7 @@ class TelegramForwarderBot:
             parents=True, exist_ok=True)
 
         self._config_watcher: ConfigWatcher = ConfigWatcher(
-            [self.on_config_update])
+            self._static_config.config_watcher, [self.on_config_update])
 
         init_metric_recorder(self._static_config.metric_recorder,
                              self._dynamic_config.metric_recorder)

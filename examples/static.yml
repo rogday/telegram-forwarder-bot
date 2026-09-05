@@ -6,6 +6,9 @@ client:
   admin_phone: "+1234567890"
   session_dir: "./sessions"
 
+config_watcher:
+  debounce_interval_ms: 100
+
 monitor:
   match_queue_size: 1000
 

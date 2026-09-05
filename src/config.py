@@ -25,6 +25,10 @@ class ClientStaticConfig(BaseModel):
     session_dir: Path = Path("./sessions")
 
 
+class ConfigWatcherStaticConfig(BaseModel):
+    debounce_interval_ms: PositiveInt = 100
+
+
 class MonitorStaticConfig(BaseModel):
     match_queue_size: PositiveInt = 1000
 
@@ -56,6 +60,9 @@ class StaticConfig(BaseSettings):
     )
 
     client: ClientStaticConfig
+    config_watcher: ConfigWatcherStaticConfig = Field(
+        default_factory=ConfigWatcherStaticConfig
+    )
     monitor: MonitorStaticConfig = Field(default_factory=MonitorStaticConfig)
     storage_manager: StorageManagerStaticConfig = Field(
         default_factory=StorageManagerStaticConfig

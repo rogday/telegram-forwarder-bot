@@ -4,6 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from config import (
+    ConfigWatcherStaticConfig,
     DynamicConfig,
     LogManagerDynamicConfig,
     MetricRecorderDynamicConfig,
@@ -24,6 +25,7 @@ from config_watcher import _load_dynamic_config
     ("config_class", "field_name"),
     [
         (MonitorStaticConfig, "match_queue_size"),
+        (ConfigWatcherStaticConfig, "debounce_interval_ms"),
         (ProfilingDynamicConfig, "threshold_nanos"),
         (StackDumpDynamicConfig, "frame_count_limit"),
         (StackDumpDynamicConfig, "threshold_nanos"),
@@ -104,7 +106,7 @@ def test_invalid_dynamic_file_loads_defaults(
     assert load_dynamic_config() == DynamicConfig.model_construct()
 
 
-def test_invalid_dynamic_reload_publishes_defaults(
+def test_invalid_dynamic_reload_preserves_current_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -115,10 +117,10 @@ def test_invalid_dynamic_reload_publishes_defaults(
     )
     received_configs: list[DynamicConfig] = []
 
-    loaded_config = _load_dynamic_config([received_configs.append])
+    with pytest.raises(ValidationError):
+        _load_dynamic_config([received_configs.append])
 
-    assert loaded_config == DynamicConfig.model_construct()
-    assert received_configs == [loaded_config]
+    assert received_configs == []
 
 
 def test_dynamic_fallback_survives_logging_failure(
