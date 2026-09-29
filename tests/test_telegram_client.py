@@ -18,6 +18,18 @@ def create_client(attempts: int) -> ResilientTelegramClient:
     return client
 
 
+def test_client_logs_under_its_own_name():
+    async def create():
+        return ResilientTelegramClient(
+            None, 1, "hash", client_name="bot",
+            dynamic_config=ClientDynamicConfig())
+
+    client = asyncio.run(create())
+
+    assert client._log["telethon.network.mtprotosender"].name == (
+        "telethon.bot.network.mtprotosender")
+
+
 def test_request_without_response_is_sent_again(monkeypatch):
     sent = []
 

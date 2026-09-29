@@ -216,6 +216,8 @@ BOT_INSTANCE_ID=my-instance docker compose --project-directory . --env-file .com
 
 To add another instance, create `data/another-instance` with its own two YAML files, then run `BOT_INSTANCE_ID=another-instance docker compose --project-directory . --env-file .compose.env -f deploy/compose.bot.yml up -d`. Each ID gets its own Compose project, container, sessions, storage, and logs. Alloy discovers new `data/<instance>/logs/*.jsonl` files automatically, so its configuration and the telemetry stack do not need to be changed or restarted.
 
+In Loki, every log line has `instance`, `level`, and `source` labels. `source` is `app` for the bot's own code, `telethon.user` or `telethon.bot` for the two Telegram clients, and the top-level package for other libraries, such as `influxdb_client_3` or `urllib3`. The module or logger name is in the `record.name` JSON field, for example `{source="telethon.user"} | json | record_name=~".*updates"`.
+
 Use the same instance ID for lifecycle commands:
 
 ```bash

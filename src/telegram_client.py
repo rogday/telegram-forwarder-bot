@@ -24,7 +24,8 @@ class ResilientTelegramClient(TelegramClient):
                  dynamic_config: ClientDynamicConfig, **kwargs) -> None:
         self._client_name = client_name
         self._client_config = dynamic_config
-        super().__init__(*args, **kwargs)
+        # Telethon logs of this client go to telethon.<client_name>.*
+        super().__init__(*args, base_logger=f"telethon.{client_name}", **kwargs)
 
     def on_config_update(self, dynamic_config: ClientDynamicConfig) -> None:
         self._client_config = dynamic_config

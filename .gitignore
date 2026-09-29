@@ -47,4 +47,5 @@
 !/tests/test_config.py
 !/tests/test_retry.py
 !/tests/test_telegram_client.py
+!/tests/test_app_logging.py
 !/pytest.ini

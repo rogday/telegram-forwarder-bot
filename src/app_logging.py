@@ -1,10 +1,23 @@
 import inspect
 import logging
 import sys
+from pathlib import Path
 
 from loguru import logger as _logger
 
 from config import LogManagerDynamicConfig
+
+_APP_DIR = Path(__file__).parent
+
+
+def _source(logger_name: str, filename: str) -> str:
+    if Path(filename).parent == _APP_DIR:
+        return "app"
+    package, _, rest = logger_name.partition(".")
+    # Each Telegram client logs under its own base logger, e.g. telethon.user
+    if package == "telethon" and rest:
+        return f"telethon.{rest.partition('.')[0]}"
+    return package
 
 
 class InterceptHandler(logging.Handler):
@@ -15,12 +28,16 @@ class InterceptHandler(logging.Handler):
         except ValueError:
             level = record.levelno
 
+        # Skip this module and the logging package to find the actual caller
         frame, depth = inspect.currentframe(), 0
-        while frame and (depth == 0 or frame.f_code.co_filename == logging.__file__):
+        while frame and frame.f_code.co_filename in (__file__, logging.__file__):
             frame = frame.f_back
             depth += 1
 
-        _logger.opt(depth=depth, exception=record.exc_info).log(
+        source = _source(record.name, frame.f_code.co_filename if frame else "")
+        _logger.bind(source=source).patch(
+            lambda loguru_record: loguru_record.update(name=record.name)
+        ).opt(depth=depth, exception=record.exc_info).log(
             level, record.getMessage()
         )
 
@@ -74,7 +91,7 @@ class LogManager:
             colorize=True,
         )
 
-        _logger.configure(extra=dict(service=config.service_name))
+        _logger.configure(extra=dict(service=config.service_name, source="app"))
 
     def on_config_update(self, dynamic_config: LogManagerDynamicConfig) -> None:
         self._dynamic_config = dynamic_config
