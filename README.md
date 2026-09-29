@@ -112,7 +112,9 @@ metric_recorder:
     database_name:
 ```
 
-The `.dynamic.yml` file contains runtime-reloadable settings such as the timezone, deduplication, metric intervals, logging, and instrumentation. The bot reloads it when the file changes.
+The `.dynamic.yml` file contains runtime-reloadable settings such as the timezone, deduplication, metric intervals, request timeouts and retries, logging, and instrumentation. The bot reloads it when the file changes.
+
+Every Telegram request, including the ones Telethon makes to fetch missed updates, and every InfluxDB write has a timeout per attempt and is retried with exponential backoff. If the last attempt fails, the error is logged and the bot carries on.
 
 5. Start the telemetry stack (optional):
 
@@ -281,6 +283,8 @@ telegram-forwarder-bot/
     ├── monitoring.py         # Message monitor and chat entity resolver
     ├── notification.py       # Command handler and notification dispatcher
     ├── metrics.py            # InfluxDB 3 performance metrics
+    ├── retry.py              # Timeouts and exponential retries
+    ├── telegram_client.py    # Telethon client with request timeouts
     └── app_logging.py        # JSON file and stderr logging setup
 ```
 

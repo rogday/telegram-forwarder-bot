@@ -32,6 +32,8 @@
 !/src/notification.py
 !/src/storage.py
 !/src/app_logging.py
+!/src/retry.py
+!/src/telegram_client.py
 
 # 5. TEST FILES - Manually Allow
 !/tests/__init__.py
@@ -43,4 +45,6 @@
 !/tests/test_telegram_forwarder_bot.py
 !/tests/test_notification.py
 !/tests/test_config.py
+!/tests/test_retry.py
+!/tests/test_telegram_client.py
 !/pytest.ini

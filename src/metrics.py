@@ -20,12 +20,6 @@ from influxdb_client_3 import (
     write_client_options,
 )
 from influxdb_client_3.exceptions.exceptions import InfluxDBError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
 from app_logging import get_logger
 from config import (
@@ -35,6 +29,7 @@ from config import (
     RuntimeInstrumentationManagerStaticConfig,
     RuntimeInstrumentationMode,
 )
+from retry import retry_with_timeout
 
 logger = get_logger(__name__)
 
@@ -153,16 +148,9 @@ class MetricRecorder(NoopMetricRecorder):
         await asyncio.gather(*tasks, return_exceptions=True)
 
         loop = asyncio.get_running_loop()
-        await loop.run_in_executor(None, self._influxdb_client.close)
-
-    @retry(
-        stop=stop_after_attempt(3),
-        wait=wait_exponential(multiplier=1, min=1, max=8),
-        retry=retry_if_exception_type(InfluxDBError),
-        reraise=True,
-    )
-    def _write_with_retry(self, points: list[Point]):
-        self._influxdb_client.write(record=points)
+        await asyncio.wait_for(
+            loop.run_in_executor(None, self._influxdb_client.close),
+            self._dynamic_config.write_retry.timeout_seconds)
 
     def _send_batch(self, batch: list[MetricRecord]) -> None:
         points = []
@@ -178,33 +166,33 @@ class MetricRecorder(NoopMetricRecorder):
                 point = point.field(key, value)
             points.append(point)
 
-        self._write_with_retry(points)
+        self._influxdb_client.write(record=points)
+
+    async def _flush(self) -> None:
+        batch = [self._queue.get_nowait() for _ in range(self._queue.qsize())]
+        if not batch:
+            return
+
+        loop = asyncio.get_running_loop()
+        try:
+            await retry_with_timeout(
+                lambda: loop.run_in_executor(None, self._send_batch, batch),
+                self._dynamic_config.write_retry,
+                "InfluxDB write",
+                retry_on=(InfluxDBError,),
+            )
+        except Exception:
+            logger.exception(
+                "Dropping metrics batch after failed InfluxDB write",
+                batch_size=len(batch),
+            )
 
     async def _worker(self):
         while self._enabled:
             try:
                 await asyncio.sleep(self._dynamic_config.metric_interval_seconds)
-
-                items_to_pop = self._queue.qsize()
-                if items_to_pop == 0:
-                    continue
-
-                batch = []
-                for _ in range(items_to_pop):
-                    record = self._queue.get_nowait()
-                    batch.append(record)
-
-                await asyncio.get_running_loop().run_in_executor(
-                    None, self._send_batch, batch
-                )
+                await self._flush()
             except asyncio.CancelledError:
-                break
-            except Exception:
-                logger.exception(
-                    "InfluxDB write error after retries. Disabling metrics engine.",
-                    remaining_queue=self._queue.qsize(),
-                )
-                self._enabled = False
                 break
 
 

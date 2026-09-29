@@ -1,7 +1,5 @@
 import asyncio
 
-from telethon import TelegramClient
-
 from app_logging import LogManager, get_logger
 from config import (
     DynamicConfig,
@@ -17,6 +15,7 @@ from metrics import (
 from monitoring import ChatResolver, Monitor
 from notification import Notifier
 from storage import StorageManager
+from telegram_client import ResilientTelegramClient
 
 logger = get_logger(__name__)
 
@@ -44,15 +43,19 @@ class TelegramForwarderBot:
             static_config=self._static_config.runtime_instrumentation_manager,
             dynamic_config=self._dynamic_config.runtime_instrumentation_manager)
 
-        self._user_client: TelegramClient = TelegramClient(
+        self._user_client: ResilientTelegramClient = ResilientTelegramClient(
             self._static_config.client.session_dir / "user",
             api_id=self._static_config.client.api_id,
             api_hash=self._static_config.client.api_hash,
+            client_name="user",
+            dynamic_config=self._dynamic_config.client,
         )
-        self._bot_client: TelegramClient = TelegramClient(
+        self._bot_client: ResilientTelegramClient = ResilientTelegramClient(
             self._static_config.client.session_dir / "bot",
             api_id=self._static_config.client.api_id,
             api_hash=self._static_config.client.api_hash,
+            client_name="bot",
+            dynamic_config=self._dynamic_config.client,
         )
 
         self._storage_manager: StorageManager = StorageManager(
@@ -78,6 +81,8 @@ class TelegramForwarderBot:
 
     def on_config_update(self, config: DynamicConfig) -> None:
         get_metric_recorder().on_config_update(config.metric_recorder)
+        self._user_client.on_config_update(config.client)
+        self._bot_client.on_config_update(config.client)
         self._storage_manager.on_config_update(config.storage_manager)
         self._monitor.on_config_update(config.monitor)
         self._notifier.on_config_update(config.notifier)

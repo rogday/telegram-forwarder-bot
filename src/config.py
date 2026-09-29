@@ -3,7 +3,7 @@ from enum import StrEnum
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, Field, PositiveInt, field_validator
+from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
 
 STATIC_CONFIG_NAME = ".static.yml"
@@ -105,6 +105,20 @@ class RuntimeInstrumentationManagerDynamicConfig(BaseModel):
     )
 
 
+class RetryDynamicConfig(BaseModel):
+    timeout_seconds: PositiveFloat = 90
+    attempts: PositiveInt = 3
+    min_backoff_seconds: PositiveFloat = 1
+    max_backoff_seconds: PositiveFloat = 30
+
+
+class ClientDynamicConfig(BaseModel):
+    # NOTE: Keep the timeout above Telethon's 60s flood_sleep_threshold,
+    # otherwise flood-wait sleeps are cut short and retried.
+    request_retry: RetryDynamicConfig = Field(
+        default_factory=RetryDynamicConfig)
+
+
 class NotifierDynamicConfig(BaseModel):
     timezone: str = "UTC"
 
@@ -129,6 +143,7 @@ class MetricRecorderDynamicConfig(BaseModel):
     heartbeat_interval_seconds: PositiveInt = 30
     gc_interval_seconds: PositiveInt = 10
     metric_interval_seconds: PositiveInt = 20
+    write_retry: RetryDynamicConfig = Field(default_factory=RetryDynamicConfig)
 
 
 class MonitorDynamicConfig(BaseModel):
@@ -163,6 +178,7 @@ class DynamicConfig(BaseSettings):
         case_sensitive=False,
     )
 
+    client: ClientDynamicConfig = Field(default_factory=ClientDynamicConfig)
     notifier: NotifierDynamicConfig = Field(
         default_factory=NotifierDynamicConfig)
     storage_manager: StorageManagerDynamicConfig = Field(

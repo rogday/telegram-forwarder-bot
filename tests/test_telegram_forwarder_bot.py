@@ -110,3 +110,30 @@ def test_metrics_stop_immediately_after_start():
     asyncio.run(run())
     client.close.assert_called_once()
     client.flush.assert_not_called()
+
+
+def test_failed_metrics_write_is_logged_and_recording_continues():
+    from influxdb_client_3.exceptions.exceptions import InfluxDBError
+
+    from config import (
+        MetricRecorderDynamicConfig,
+        MetricRecorderStaticConfig,
+        RetryDynamicConfig,
+    )
+    from metrics import MetricRecord, MetricRecorder
+
+    client = Mock()
+    client.write.side_effect = InfluxDBError(message="unavailable")
+    recorder = MetricRecorder(client, MetricRecorderStaticConfig(), MetricRecorderDynamicConfig(
+        write_retry=RetryDynamicConfig(
+            attempts=2, min_backoff_seconds=0.01, max_backoff_seconds=0.01)))
+    record = MetricRecord(table_name="health", tags={}, fields=dict(status=True))
+    recorder.record(record)
+
+    with patch("metrics.logger") as logger, patch("retry.logger"):
+        asyncio.run(recorder._flush())
+
+    assert client.write.call_count == 2
+    logger.exception.assert_called_once()
+    recorder.record(record)
+    assert recorder._queue.qsize() == 1

@@ -1,3 +1,10 @@
+client:
+  request_retry:
+    timeout_seconds: 90
+    attempts: 3
+    min_backoff_seconds: 1
+    max_backoff_seconds: 30
+
 notifier:
   timezone: "UTC"
 
@@ -9,6 +16,11 @@ metric_recorder:
   heartbeat_interval_seconds: 30
   gc_interval_seconds: 10
   metric_interval_seconds: 20
+  write_retry:
+    timeout_seconds: 90
+    attempts: 3
+    min_backoff_seconds: 1
+    max_backoff_seconds: 30
 
 monitor:
   ping_interval_seconds: 5
