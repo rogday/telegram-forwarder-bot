@@ -42,6 +42,10 @@ class MetricRecord:
     timestamp_ns: int = field(default_factory=time.time_ns)
 
 
+# Returns fields of the health metric, "status" is False when the bot is unhealthy
+HealthCheck = Callable[[], dict[str, Any]]
+
+
 class NoopMetricRecorder:
     def __init__(self):
         pass
@@ -50,6 +54,9 @@ class NoopMetricRecorder:
         pass
 
     def record(self, _record: MetricRecord) -> None:
+        pass
+
+    def set_health_check(self, _health_check: HealthCheck) -> None:
         pass
 
     async def stop(self) -> None:
@@ -66,6 +73,7 @@ class MetricRecorder(NoopMetricRecorder):
     _worker_task: asyncio.Task | None
     _heartbeat_task: asyncio.Task | None
     _gc_task: asyncio.Task | None
+    _health_check: HealthCheck | None
 
     def __init__(self, influxdb_client: InfluxDBClient3, static_config: MetricRecorderStaticConfig, dynamic_config: MetricRecorderDynamicConfig):
         self._static_config = static_config
@@ -78,6 +86,10 @@ class MetricRecorder(NoopMetricRecorder):
         self._worker_task = None
         self._heartbeat_task = None
         self._gc_task = None
+        self._health_check = None
+
+    def set_health_check(self, health_check: HealthCheck) -> None:
+        self._health_check = health_check
 
     async def start(self) -> None:
         if not self._enabled:
@@ -120,15 +132,25 @@ class MetricRecorder(NoopMetricRecorder):
 
         await self._run_loop("gc", do_gc_work)
 
+    def _record_heartbeat(self) -> None:
+        fields: dict[str, Any] = dict(status=True)
+        if self._health_check is not None:
+            try:
+                fields = self._health_check()
+            except Exception:
+                logger.exception("Health check failed")
+                fields = dict(status=False)
+
+        self.record(MetricRecord(table_name="health", fields=fields, tags=dict()))
+        if fields["status"]:
+            logger.info("Heartbeat sent", **fields)
+        else:
+            logger.warning("Heartbeat sent, bot is unhealthy", **fields)
+
     async def _heartbeat_loop(self):
         async def do_heartbeat_work():
             await asyncio.sleep(self._dynamic_config.heartbeat_interval_seconds)
-            self.record(
-                MetricRecord(
-                    table_name="health", fields=dict(status=True), tags=dict()
-                )
-            )
-            logger.info("Heartbeat sent")
+            self._record_heartbeat()
         await self._run_loop("heartbeat", do_heartbeat_work)
 
     def record(self, record: MetricRecord) -> None:

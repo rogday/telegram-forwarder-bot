@@ -190,6 +190,8 @@ To import the dashboard:
 3. Select the InfluxDB and Loki data sources if Grafana prompts for them.
 4. Select **Import**.
 
+The **Heartbeat** panel turns red when heartbeats stop or when the bot reports itself unhealthy, which happens when the user client has not handled a single message from any chat for `monitor.max_silence_seconds` (12 hours by default). Each heartbeat also stores `seconds_since_last_message` in the `health` table for alerting.
+
 ### Dashboard preview
 
 ![Grafana dashboard for the Telegram Forwarder Bot](examples/Dashboard.png)

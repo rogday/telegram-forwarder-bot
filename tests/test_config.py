@@ -36,6 +36,7 @@ from config_watcher import _load_dynamic_config
         (MetricRecorderDynamicConfig, "gc_interval_seconds"),
         (MetricRecorderDynamicConfig, "metric_interval_seconds"),
         (MonitorDynamicConfig, "ping_interval_seconds"),
+        (MonitorDynamicConfig, "max_silence_seconds"),
         (RetryDynamicConfig, "attempts"),
         (LogManagerDynamicConfig, "max_bytes"),
         (LogManagerDynamicConfig, "max_files"),

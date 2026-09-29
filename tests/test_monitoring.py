@@ -52,6 +52,23 @@ def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
     assert storage.paused.call_count == 4
 
 
+def test_health_reports_silence_until_next_message():
+    storage = Mock()
+    storage.paused.return_value = True
+    monitor = Monitor(Mock(), storage, Mock(), MonitorStaticConfig(),
+                      MonitorDynamicConfig(max_silence_seconds=60))
+    assert monitor.health()["status"] is True
+
+    monitor._last_message_at -= 61
+    health = monitor.health()
+    assert health["status"] is False
+    assert health["seconds_since_last_message"] >= 61
+
+    # Any handled message counts, even while notifications are paused
+    asyncio.run(monitor._handle_new_message(Mock()))
+    assert monitor.health()["status"] is True
+
+
 def test_monitor_stop_before_start_and_during_ping():
     monitor = Monitor(Mock(), Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
 

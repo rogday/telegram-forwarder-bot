@@ -1,7 +1,9 @@
 import asyncio
 import contextlib
 import random
+import time
 from dataclasses import dataclass
+from typing import Any
 
 from telethon import TelegramClient, events, utils
 from telethon.tl.custom.message import Message as TelethonMessage
@@ -107,6 +109,7 @@ class Monitor(RuntimeInstrumentationBase):
         self._match_queue: asyncio.Queue[MatchEvent] = asyncio.Queue(
             maxsize=self._static_config.match_queue_size)
         self._chat_resolver: ChatResolver = chat_resolver
+        self._last_message_at: float = time.monotonic()
         self._client.add_event_handler(
             self._handle_new_message, events.NewMessage())
 
@@ -124,6 +127,13 @@ class Monitor(RuntimeInstrumentationBase):
 
     def get_match_queue(self) -> asyncio.Queue[MatchEvent]:
         return self._match_queue
+
+    def health(self) -> dict[str, Any]:
+        seconds_since_last_message = time.monotonic() - self._last_message_at
+        return dict(
+            status=seconds_since_last_message <= self._dynamic_config.max_silence_seconds,
+            seconds_since_last_message=seconds_since_last_message,
+        )
 
     async def _ping_loop(self):
         while True:
@@ -208,6 +218,7 @@ class Monitor(RuntimeInstrumentationBase):
             )
 
     async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
+        self._last_message_at = time.monotonic()
         try:
             await self._handle_new_message_impl(event)
         except Exception:

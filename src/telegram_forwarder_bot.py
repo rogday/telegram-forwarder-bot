@@ -68,6 +68,7 @@ class TelegramForwarderBot:
             self._user_client, self._storage_manager.data, self._chat_resolver,
             self._static_config.monitor,
             self._dynamic_config.monitor)
+        get_metric_recorder().set_health_check(self._monitor.health)
 
         match_queue = self._monitor.get_match_queue()
 

@@ -112,6 +112,33 @@ def test_metrics_stop_immediately_after_start():
     client.flush.assert_not_called()
 
 
+def test_heartbeat_reports_health_check():
+    from config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
+    from metrics import MetricRecorder
+
+    recorder = MetricRecorder(
+        Mock(), MetricRecorderStaticConfig(), MetricRecorderDynamicConfig())
+
+    def failing_check():
+        raise RuntimeError("check failed")
+
+    with patch("metrics.logger") as logger:
+        recorder._record_heartbeat()
+        recorder.set_health_check(
+            lambda: dict(status=False, seconds_since_last_message=43201.0))
+        recorder._record_heartbeat()
+        recorder.set_health_check(failing_check)
+        recorder._record_heartbeat()
+
+    assert [recorder._queue.get_nowait().fields for _ in range(3)] == [
+        dict(status=True),
+        dict(status=False, seconds_since_last_message=43201.0),
+        dict(status=False),
+    ]
+    logger.exception.assert_called_once()
+    assert logger.warning.call_count == 2
+
+
 def test_failed_metrics_write_is_logged_and_recording_continues():
     from influxdb_client_3.exceptions.exceptions import InfluxDBError
 

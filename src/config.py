@@ -148,6 +148,8 @@ class MetricRecorderDynamicConfig(BaseModel):
 
 class MonitorDynamicConfig(BaseModel):
     ping_interval_seconds: PositiveInt = 5
+    # Health turns red when no message from any chat was handled for this long
+    max_silence_seconds: PositiveInt = 12 * 60 * 60
 
 
 class LogManagerDynamicConfig(BaseModel):
