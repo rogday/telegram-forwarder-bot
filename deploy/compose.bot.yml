@@ -1,5 +1,11 @@
 name: "telegram-forwarder-${BOT_INSTANCE_ID:?Set BOT_INSTANCE_ID to the instance directory name}"
 
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   bot:
     build:
@@ -7,6 +13,7 @@ services:
       dockerfile: deploy/Dockerfile
     image: telegram-forwarder-bot:local
     restart: unless-stopped
+    logging: *logging
     init: true
     working_dir: /app/instance
     command:

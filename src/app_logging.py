@@ -88,7 +88,7 @@ class LogManager:
             sys.stdout,
             level=level_str,
             format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | {name}:{function}:{line} - <level>{message}</level>",
-            colorize=True,
+            colorize=None,  # Colour only a real terminal, not docker logs
         )
 
         _logger.configure(extra=dict(service=config.service_name, source="app"))

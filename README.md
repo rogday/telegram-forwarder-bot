@@ -228,6 +228,8 @@ BOT_INSTANCE_ID=my-instance docker compose --project-directory . --env-file .com
 BOT_INSTANCE_ID=my-instance docker compose --project-directory . --env-file .compose.env -f deploy/compose.bot.yml down
 ```
 
+Docker keeps at most three 10 MB log files per container, for the bot and the telemetry services alike.
+
 For metrics from a containerized bot, set `metric_recorder.influxdb3.endpoint` in that instance configuration to `http://influxdb:8181`. Leaving the endpoint and token empty keeps metrics export disabled.
 
 ## Bot Commands

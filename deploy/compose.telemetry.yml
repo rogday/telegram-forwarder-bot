@@ -1,10 +1,17 @@
 name: telegram-forwarder-telemetry
 
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   influxdb:
     image: influxdb:3-core
     user: "0:0"
     restart: unless-stopped
+    logging: *logging
     ports:
       - "${INFLUXDB_BIND_ADDRESS:-0.0.0.0}:${INFLUXDB_HTTP_PORT:-8181}:8181"
     volumes:
@@ -22,6 +29,7 @@ services:
   grafana:
     image: grafana/grafana-oss:latest
     restart: unless-stopped
+    logging: *logging
     ports:
       - "${GRAFANA_BIND_ADDRESS:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
     environment:
@@ -38,6 +46,7 @@ services:
   loki:
     image: grafana/loki:latest
     restart: unless-stopped
+    logging: *logging
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
       - loki_data:/loki
@@ -47,6 +56,7 @@ services:
   alloy:
     image: grafana/alloy:latest
     restart: unless-stopped
+    logging: *logging
     ports:
       - "${ALLOY_BIND_ADDRESS:-0.0.0.0}:${ALLOY_PORT:-12345}:12345"
     volumes:
