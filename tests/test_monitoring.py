@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import contextmanager
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from config import (
     MonitorDynamicConfig,
@@ -80,3 +80,18 @@ def test_monitor_stop_before_start_and_during_ping():
         assert monitor._force_sync_task.cancelled()
 
     asyncio.run(run())
+
+
+def test_status_log_counts_messages_since_previous_line():
+    storage = Mock()
+    storage.paused.return_value = True
+    monitor = Monitor(Mock(), storage, Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+    asyncio.run(monitor._handle_new_message(Mock()))
+    asyncio.run(monitor._handle_new_message(Mock()))
+
+    with patch("monitoring.logger") as logger:
+        monitor._log_status()
+        monitor._log_status()
+
+    assert [c.kwargs["messages_handled"] for c in logger.info.call_args_list] == [2, 0]
+    assert logger.info.call_args.kwargs["status"] is True

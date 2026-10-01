@@ -104,23 +104,27 @@ class Monitor(RuntimeInstrumentationBase):
         self._dynamic_config = dynamic_config
 
         self._force_sync_task: asyncio.Task | None = None
+        self._status_task: asyncio.Task | None = None
         self._client: TelegramClient = client
         self._storage: StorageData = storage
         self._match_queue: asyncio.Queue[MatchEvent] = asyncio.Queue(
             maxsize=self._static_config.match_queue_size)
         self._chat_resolver: ChatResolver = chat_resolver
         self._last_message_at: float = time.monotonic()
+        self._messages_handled: int = 0
         self._client.add_event_handler(
             self._handle_new_message, events.NewMessage())
 
     def start(self) -> None:
         self._force_sync_task = asyncio.create_task(self._ping_loop())
+        self._status_task = asyncio.create_task(self._status_loop())
 
     async def stop(self) -> None:
-        if self._force_sync_task is not None:
-            self._force_sync_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._force_sync_task
+        for task in (self._force_sync_task, self._status_task):
+            if task is not None:
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     def on_config_update(self, dynamic_config: MonitorDynamicConfig) -> None:
         self._dynamic_config = dynamic_config
@@ -142,6 +146,17 @@ class Monitor(RuntimeInstrumentationBase):
             except Exception:
                 logger.exception("Ping request failed")
             await asyncio.sleep(self._dynamic_config.ping_interval_seconds)
+
+    def _log_status(self) -> None:
+        logger.info("Monitor is running", messages_handled=self._messages_handled,
+                    **self.health())
+        self._messages_handled = 0
+
+    # A rare INFO line that shows the bot and its logging are alive
+    async def _status_loop(self):
+        while True:
+            await asyncio.sleep(self._dynamic_config.status_log_interval_seconds)
+            self._log_status()
 
     # FIXME: Maybe add argument to decorator and somehow measure end to end latency from receive to send
     @profileable
@@ -219,6 +234,7 @@ class Monitor(RuntimeInstrumentationBase):
 
     async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
         self._last_message_at = time.monotonic()
+        self._messages_handled += 1
         try:
             await self._handle_new_message_impl(event)
         except Exception:

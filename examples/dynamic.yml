@@ -21,6 +21,7 @@ metric_recorder:
 monitor:
   ping_interval_seconds: 5
   max_silence_seconds: 43200
+  status_log_interval_seconds: 3600
 
 log_manager:
   log_file_path: "logs/app.jsonl"

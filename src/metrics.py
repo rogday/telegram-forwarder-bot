@@ -126,7 +126,7 @@ class MetricRecorder(NoopMetricRecorder):
                         tags=dict(gc=i),
                     )
                 )
-            logger.info("Gc metrics sent")
+            logger.debug("Gc metrics recorded")
 
         await self._run_loop("gc", do_gc_work)
 
@@ -141,9 +141,9 @@ class MetricRecorder(NoopMetricRecorder):
 
         self.record(MetricRecord(table_name="health", fields=fields, tags=dict()))
         if fields["status"]:
-            logger.info("Heartbeat sent", **fields)
+            logger.debug("Heartbeat recorded", **fields)
         else:
-            logger.warning("Heartbeat sent, bot is unhealthy", **fields)
+            logger.warning("Heartbeat recorded, bot is unhealthy", **fields)
 
     async def _heartbeat_loop(self):
         async def do_heartbeat_work():
