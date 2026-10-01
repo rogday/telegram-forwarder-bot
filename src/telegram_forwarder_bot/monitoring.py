@@ -248,17 +248,10 @@ class Monitor(RuntimeInstrumentationBase):
     def _get_chat_topic(
         self, chat: ChatInfo, reply_header: TypeMessageReplyHeader | None
     ) -> ChatTopic:
-        is_forum = chat.forum
-        topic_id = None
-        if reply_header is not None:
-            if isinstance(reply_header, MessageReplyHeader):
-                if reply_header.forum_topic:
-                    topic_id = (
-                        reply_header.reply_to_top_id or reply_header.reply_to_msg_id
-                    )
-                elif is_forum:
-                    topic_id = 1
-        elif is_forum:
-            topic_id = 1
-
+        if isinstance(reply_header, MessageReplyHeader) and reply_header.forum_topic:
+            topic_id = reply_header.reply_to_top_id or reply_header.reply_to_msg_id
+        elif chat.forum:
+            topic_id = 1  # General
+        else:
+            topic_id = None
         return ChatTopic(id=chat.id, topic_id=topic_id, username=chat.username)

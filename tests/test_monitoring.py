@@ -3,8 +3,10 @@ from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
 from telethon import utils
-from telethon.tl.types import PeerChannel
+from telethon.tl.types import MessageReplyHeader, MessageReplyStoryHeader, PeerChannel
 
 from telegram_forwarder_bot.config import (
     MonitorDynamicConfig,
@@ -128,3 +130,20 @@ def test_records_telegram_delay_and_reposts_as_duplicates():
     assert records[0]["message_link"] == "https://t.me/chat/42"
     assert 2000 <= records[0]["telegram_delay_ms"] < 3000
     assert monitor.get_match_queue().qsize() == 1
+
+
+@pytest.mark.parametrize(("forum", "reply_header", "topic_id"), [
+    (False, None, None),
+    (False, MessageReplyHeader(reply_to_msg_id=5), None),
+    (True, None, 1),
+    (True, MessageReplyHeader(reply_to_msg_id=5), 1),
+    (True, MessageReplyHeader(forum_topic=True, reply_to_msg_id=5), 5),
+    (True, MessageReplyHeader(forum_topic=True, reply_to_msg_id=9, reply_to_top_id=5), 5),
+    # Story replies aren't in a topic, so they belong to General
+    (True, MessageReplyStoryHeader(peer=PeerChannel(1), story_id=3), 1),
+])
+def test_message_topic(forum, reply_header, topic_id):
+    monitor = Monitor(Mock(), Mock(), Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+    chat = ChatInfo(id=123, forum=forum, title="Chat", username="chat")
+
+    assert monitor._get_chat_topic(chat, reply_header).topic_id == topic_id
