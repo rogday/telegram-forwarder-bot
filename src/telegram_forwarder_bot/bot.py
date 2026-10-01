@@ -1,21 +1,21 @@
 import asyncio
 
-from app_logging import LogManager, get_logger
-from config import (
+from .app_logging import LogManager, get_logger
+from .config import (
     DynamicConfig,
     StaticConfig,
     load_dynamic_config,
 )
-from config_watcher import ConfigWatcher
-from metrics import (
+from .config_watcher import ConfigWatcher
+from .metrics import (
     RuntimeInstrumentationManager,
     get_metric_recorder,
     init_metric_recorder,
 )
-from monitoring import ChatResolver, Monitor
-from notification import Notifier
-from storage import StorageManager
-from telegram_client import ResilientTelegramClient
+from .monitoring import ChatResolver, Monitor
+from .notification import Notifier
+from .storage import StorageManager
+from .telegram_client import ResilientTelegramClient
 
 logger = get_logger(__name__)
 

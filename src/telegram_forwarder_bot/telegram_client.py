@@ -1,8 +1,8 @@
 from telethon import TelegramClient, utils
 
-from app_logging import get_logger
-from config import ClientDynamicConfig
-from retry import retry_with_timeout
+from .app_logging import get_logger
+from .config import ClientDynamicConfig
+from .retry import retry_with_timeout
 
 logger = get_logger(__name__)
 

@@ -7,8 +7,8 @@ from dataclasses import dataclass, field
 import ahocorasick
 from pydantic import BaseModel
 
-from config import StorageManagerDynamicConfig, StorageManagerStaticConfig
-from metrics import RuntimeInstrumentationBase, traceable
+from .config import StorageManagerDynamicConfig, StorageManagerStaticConfig
+from .metrics import RuntimeInstrumentationBase, traceable
 
 
 def _build_link(username: str, topic_id: int | None) -> str:

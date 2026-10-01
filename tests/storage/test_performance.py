@@ -2,7 +2,7 @@
 
 import pytest
 
-from storage import KeywordGroup
+from telegram_forwarder_bot.storage import KeywordGroup
 
 
 class TestPerformance:

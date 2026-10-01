@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-import main
+from telegram_forwarder_bot import main
 
 
 @pytest.mark.parametrize('outcome', ['normal', 'startup_error', 'constructor_error', 'sigterm'])

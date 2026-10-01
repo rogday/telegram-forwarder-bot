@@ -20,8 +20,8 @@ from influxdb_client_3 import (
     write_client_options,
 )
 
-from app_logging import get_logger
-from config import (
+from .app_logging import get_logger
+from .config import (
     MetricRecorderDynamicConfig,
     MetricRecorderStaticConfig,
     RuntimeInstrumentationManagerDynamicConfig,

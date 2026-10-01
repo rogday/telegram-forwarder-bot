@@ -4,8 +4,8 @@ from unittest.mock import Mock
 import pytest
 from watchdog.events import FileCreatedEvent, FileModifiedEvent, FileMovedEvent
 
-from config import ConfigWatcherStaticConfig
-from config_watcher import ConfigWatcher, _ConfigFileHandler
+from telegram_forwarder_bot.config import ConfigWatcherStaticConfig
+from telegram_forwarder_bot.config_watcher import ConfigWatcher, _ConfigFileHandler
 
 
 @pytest.mark.parametrize('event_factory', [
@@ -18,7 +18,7 @@ def test_reload_debounces_saves_and_preserves_config_on_error(
 ):
     monkeypatch.chdir(tmp_path)
     timer_factory = Mock()
-    monkeypatch.setattr('config_watcher.Timer', timer_factory)
+    monkeypatch.setattr('telegram_forwarder_bot.config_watcher.Timer', timer_factory)
     received = []
     handler = _ConfigFileHandler(
         ConfigWatcherStaticConfig(debounce_interval_ms=250), [received.append])

@@ -6,8 +6,8 @@ import pytest
 from telethon import TelegramClient
 from telethon.tl.functions.updates import GetStateRequest
 
-from config import ClientDynamicConfig, RetryDynamicConfig
-from telegram_client import ResilientTelegramClient
+from telegram_forwarder_bot.config import ClientDynamicConfig, RetryDynamicConfig
+from telegram_forwarder_bot.telegram_client import ResilientTelegramClient
 
 
 def create_client(attempts: int) -> ResilientTelegramClient:
@@ -56,7 +56,7 @@ def test_request_without_response_is_sent_again(monkeypatch):
     monkeypatch.setattr(TelegramClient, "_call", telethon_call)
     request = GetStateRequest()
 
-    with patch("retry.logger"):
+    with patch("telegram_forwarder_bot.retry.logger"):
         result = asyncio.run(create_client(attempts=2)._call(Mock(), request))
 
     assert result == "state"
@@ -70,7 +70,7 @@ def test_final_timeout_is_logged_and_raised(monkeypatch):
 
     monkeypatch.setattr(TelegramClient, "_call", telethon_call)
 
-    with patch("telegram_client.logger") as logger, patch("retry.logger"), \
+    with patch("telegram_forwarder_bot.telegram_client.logger") as logger, patch("telegram_forwarder_bot.retry.logger"), \
             pytest.raises(TimeoutError):
         asyncio.run(create_client(attempts=1)._call(Mock(), GetStateRequest()))
 

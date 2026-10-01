@@ -2,7 +2,7 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call, patch
 
-from telegram_forwarder_bot import TelegramForwarderBot
+from telegram_forwarder_bot.bot import TelegramForwarderBot
 
 
 def test_populate_chat_cache_skips_resolution_errors() -> None:
@@ -23,7 +23,7 @@ def test_populate_chat_cache_skips_resolution_errors() -> None:
     bot._storage_manager = Mock()
     bot._storage_manager.data.list_chats.return_value = iter(chats)
 
-    with patch("telegram_forwarder_bot.logger") as logger:
+    with patch("telegram_forwarder_bot.bot.logger") as logger:
         asyncio.run(bot._populate_chat_cache())
 
     assert resolver.resolve_cached.await_args_list == [
@@ -48,7 +48,7 @@ def test_stop_continues_after_resource_failure():
     bot._log_manager = Mock(stop=AsyncMock())
     recorder = Mock(stop=AsyncMock())
 
-    with patch('telegram_forwarder_bot.get_metric_recorder', return_value=recorder):
+    with patch('telegram_forwarder_bot.bot.get_metric_recorder', return_value=recorder):
         asyncio.run(bot.stop())
 
     bot._config_watcher.stop.assert_called_once()
@@ -91,14 +91,14 @@ def test_runtime_error_cancels_other_running_tasks():
         else:
             raise AssertionError('Runtime error was swallowed')
 
-    with patch('telegram_forwarder_bot.get_metric_recorder', return_value=recorder):
+    with patch('telegram_forwarder_bot.bot.get_metric_recorder', return_value=recorder):
         asyncio.run(run())
 
 
 
 def test_metrics_stop_immediately_after_start():
-    from config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
-    from metrics import MetricRecorder
+    from telegram_forwarder_bot.config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
+    from telegram_forwarder_bot.metrics import MetricRecorder
 
     client = Mock()
     recorder = MetricRecorder(client, MetricRecorderStaticConfig(), MetricRecorderDynamicConfig())
@@ -115,8 +115,8 @@ def test_metrics_stop_immediately_after_start():
 
 
 def test_heartbeat_reports_health_check():
-    from config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
-    from metrics import MetricRecorder
+    from telegram_forwarder_bot.config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
+    from telegram_forwarder_bot.metrics import MetricRecorder
 
     recorder = MetricRecorder(
         Mock(), MetricRecorderStaticConfig(), MetricRecorderDynamicConfig())
@@ -124,7 +124,7 @@ def test_heartbeat_reports_health_check():
     def failing_check():
         raise RuntimeError("check failed")
 
-    with patch("metrics.logger") as logger:
+    with patch("telegram_forwarder_bot.metrics.logger") as logger:
         recorder._record_heartbeat()
         recorder.set_health_check(
             lambda: dict(status=False, seconds_since_last_message=43201.0))

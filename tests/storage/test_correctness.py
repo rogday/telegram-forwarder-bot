@@ -1,6 +1,6 @@
 """Correctness tests for storage.py - keyword matching, group management, edge cases."""
 
-from storage import KeywordGroup, ResolvedChat
+from telegram_forwarder_bot.storage import KeywordGroup, ResolvedChat
 
 # ============================================================================
 # CORRECTNESS TESTS - KEYWORD MATCHING

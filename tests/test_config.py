@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from config import (
+from telegram_forwarder_bot.config import (
     ConfigWatcherStaticConfig,
     DynamicConfig,
     LogManagerDynamicConfig,
@@ -20,7 +20,7 @@ from config import (
     StorageManagerDynamicConfig,
     load_dynamic_config,
 )
-from config_watcher import _load_dynamic_config
+from telegram_forwarder_bot.config_watcher import _load_dynamic_config
 
 
 @pytest.mark.parametrize(
@@ -140,7 +140,7 @@ def test_dynamic_fallback_survives_logging_failure(
     def fail_to_log(*args: object, **kwargs: object) -> None:
         raise RuntimeError("logging unavailable")
 
-    monkeypatch.setattr("config.logger.exception", fail_to_log)
+    monkeypatch.setattr("telegram_forwarder_bot.config.logger.exception", fail_to_log)
 
     assert load_dynamic_config() == DynamicConfig.model_construct()
 

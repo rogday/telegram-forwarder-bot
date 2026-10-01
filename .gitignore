@@ -12,7 +12,6 @@
 !/requirements-dev.txt
 !/examples/static.yml
 !/examples/dynamic.yml
-!/run_instance.py
 !/deploy/compose.telemetry.yml
 !/deploy/compose.bot.yml
 !/examples/compose.env
@@ -24,17 +23,19 @@
 
 
 # 4. SRC FILES - Manually Allow
-!/src/main.py
-!/src/telegram_forwarder_bot.py
-!/src/config.py
-!/src/config_watcher.py
-!/src/metrics.py
-!/src/monitoring.py
-!/src/notification.py
-!/src/storage.py
-!/src/app_logging.py
-!/src/retry.py
-!/src/telegram_client.py
+!/src/telegram_forwarder_bot/__init__.py
+!/src/telegram_forwarder_bot/__main__.py
+!/src/telegram_forwarder_bot/main.py
+!/src/telegram_forwarder_bot/bot.py
+!/src/telegram_forwarder_bot/config.py
+!/src/telegram_forwarder_bot/config_watcher.py
+!/src/telegram_forwarder_bot/metrics.py
+!/src/telegram_forwarder_bot/monitoring.py
+!/src/telegram_forwarder_bot/notification.py
+!/src/telegram_forwarder_bot/storage.py
+!/src/telegram_forwarder_bot/app_logging.py
+!/src/telegram_forwarder_bot/retry.py
+!/src/telegram_forwarder_bot/telegram_client.py
 
 # 5. TOOLS - Manually Allow
 !/tools/migrate_storage.py
@@ -46,12 +47,15 @@
 !/tests/storage/test_correctness.py
 !/tests/storage/test_performance.py
 !/tests/storage/test_persistence.py
-!/tests/test_telegram_forwarder_bot.py
+!/tests/test_bot.py
 !/tests/test_notification.py
 !/tests/test_config.py
 !/tests/test_retry.py
 !/tests/test_telegram_client.py
 !/tests/test_app_logging.py
+!/tests/test_monitoring.py
+!/tests/test_main.py
+!/tests/test_config_watcher.py
 !/tests/test_migrate_storage.py
 !/tests/fixtures/pickled_storage.db
 !/pytest.ini

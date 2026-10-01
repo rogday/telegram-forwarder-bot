@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY run_instance.py .
 COPY src ./src
+ENV PYTHONPATH=/app/src
 
-CMD ["python", "/app/run_instance.py", "--help"]
+CMD ["python", "-m", "telegram_forwarder_bot", "--help"]

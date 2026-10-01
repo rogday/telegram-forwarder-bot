@@ -10,8 +10,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from app_logging import get_logger
-from config import RetryDynamicConfig
+from .app_logging import get_logger
+from .config import RetryDynamicConfig
 
 logger = get_logger(__name__)
 

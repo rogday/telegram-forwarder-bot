@@ -198,7 +198,7 @@ The **Heartbeat** panel turns red when heartbeats stop or when the bot reports i
 ### Directly with Python
 
 ```bash
-python run_instance.py --env ./data/my-instance
+PYTHONPATH=src python -m telegram_forwarder_bot --env ./data/my-instance
 ```
 
 The `--env` option points to the instance directory. Relative paths in the configuration are resolved from that directory, so each instance has its own sessions, storage, logs, and profiles.
@@ -273,7 +273,6 @@ python -m pytest
 
 ```
 telegram-forwarder-bot/
-├── run_instance.py           # CLI entry point with Click
 ├── requirements.txt          # Runtime dependencies
 ├── requirements-dev.txt      # Runtime and test dependencies
 ├── deploy/
@@ -289,9 +288,12 @@ telegram-forwarder-bot/
 │   └── dynamic.yml           # Runtime-reloadable configuration
 ├── tools/
 │   └── migrate_storage.py    # Converts a pickled storage.db to JSON
-└── src/
+└── src/telegram_forwarder_bot/
+    ├── __main__.py           # CLI entry point with Click
     ├── main.py               # Async application bootstrap
+    ├── bot.py                # Wires the clients, monitor and notifier together
     ├── config.py             # YAML configuration models and loaders
+    ├── config_watcher.py     # Reloads .dynamic.yml when it changes
     ├── storage.py            # Persistent storage and keyword management
     ├── monitoring.py         # Message monitor and chat entity resolver
     ├── notification.py       # Command handler and notification dispatcher

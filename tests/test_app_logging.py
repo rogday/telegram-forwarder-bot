@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 from loguru import logger
 
-from app_logging import LogManager  # Also routes standard logging through loguru
-from config import LogManagerDynamicConfig, load_dynamic_config
+from telegram_forwarder_bot.app_logging import LogManager  # Also routes standard logging through loguru
+from telegram_forwarder_bot.config import LogManagerDynamicConfig, load_dynamic_config
 
 
 @pytest.fixture
@@ -47,7 +47,7 @@ def test_standard_logging_from_app_modules_is_attributed_to_app(
 
     [record] = [r for r in records
                 if r["message"].startswith("Invalid dynamic configuration")]
-    assert record["name"] == "config"
+    assert record["name"] == "telegram_forwarder_bot.config"
     assert record["extra"]["source"] == "app"
     assert record["function"] == "load_dynamic_config"
 

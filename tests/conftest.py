@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from config import StorageManagerDynamicConfig, StorageManagerStaticConfig
-from storage import StorageData, StorageManager
+from telegram_forwarder_bot.config import StorageManagerDynamicConfig, StorageManagerStaticConfig
+from telegram_forwarder_bot.storage import StorageData, StorageManager
 
 
 @pytest.fixture

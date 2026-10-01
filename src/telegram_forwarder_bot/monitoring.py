@@ -15,16 +15,16 @@ from telethon.tl.types import (
     datetime,
 )
 
-from app_logging import get_logger
-from config import MonitorDynamicConfig, MonitorStaticConfig
-from metrics import (
+from .app_logging import get_logger
+from .config import MonitorDynamicConfig, MonitorStaticConfig
+from .metrics import (
     MetricRecord,
     RuntimeInstrumentationBase,
     get_metric_recorder,
     profileable,
     traceable,
 )
-from storage import ResolvedChat, StorageData
+from .storage import ResolvedChat, StorageData
 
 logger = get_logger(__name__)
 

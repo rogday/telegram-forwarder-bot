@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from notification import Notifier
-from storage import ResolvedChat, StorageData
+from telegram_forwarder_bot.notification import Notifier
+from telegram_forwarder_bot.storage import ResolvedChat, StorageData
 
 
 def create_notifier(data: StorageData) -> tuple[Notifier, AsyncMock]:

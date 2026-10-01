@@ -18,7 +18,8 @@ services:
     working_dir: /app/data/${BOT_INSTANCE_ID}
     command:
       - python
-      - /app/run_instance.py
+      - -m
+      - telegram_forwarder_bot
       - --env
       - /app/data/${BOT_INSTANCE_ID}
     environment:

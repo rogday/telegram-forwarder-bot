@@ -2,14 +2,14 @@ import asyncio
 from contextlib import contextmanager
 from unittest.mock import Mock, patch
 
-from config import (
+from telegram_forwarder_bot.config import (
     MonitorDynamicConfig,
     MonitorStaticConfig,
     RuntimeInstrumentationManagerDynamicConfig,
     RuntimeInstrumentationManagerStaticConfig,
 )
-from metrics import RuntimeInstrumentationManager
-from monitoring import Monitor
+from telegram_forwarder_bot.metrics import RuntimeInstrumentationManager
+from telegram_forwarder_bot.monitoring import Monitor
 
 
 def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
@@ -29,7 +29,7 @@ def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
     # Restrict instrumentation discovery and restore the class after the test.
     monkeypatch.setattr(Monitor, '_handle_new_message_impl', Monitor._handle_new_message_impl)
     monkeypatch.setattr(Monitor, '__subclasses__', lambda: [])
-    monkeypatch.setattr('metrics.RuntimeInstrumentationBase.__subclasses__',
+    monkeypatch.setattr('telegram_forwarder_bot.metrics.RuntimeInstrumentationBase.__subclasses__',
                         lambda: [Monitor])
     manager = RuntimeInstrumentationManager(
         RuntimeInstrumentationManagerStaticConfig(profile_dir=tmp_path),
@@ -89,7 +89,7 @@ def test_status_log_counts_messages_since_previous_line():
     asyncio.run(monitor._handle_new_message(Mock()))
     asyncio.run(monitor._handle_new_message(Mock()))
 
-    with patch("monitoring.logger") as logger:
+    with patch("telegram_forwarder_bot.monitoring.logger") as logger:
         monitor._log_status()
         monitor._log_status()
 

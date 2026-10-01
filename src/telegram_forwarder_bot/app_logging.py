@@ -5,7 +5,7 @@ from pathlib import Path
 
 from loguru import logger as _logger
 
-from config import LogManagerDynamicConfig
+from .config import LogManagerDynamicConfig
 
 _APP_DIR = Path(__file__).parent
 

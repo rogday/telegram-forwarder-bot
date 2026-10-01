@@ -6,8 +6,8 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler, FileSystemM
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 
-from app_logging import get_logger
-from config import DYNAMIC_CONFIG_NAME, ConfigWatcherStaticConfig, DynamicConfig
+from .app_logging import get_logger
+from .config import DYNAMIC_CONFIG_NAME, ConfigWatcherStaticConfig, DynamicConfig
 
 logger = get_logger(__name__)
 

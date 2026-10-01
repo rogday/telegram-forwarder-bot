@@ -1,8 +1,8 @@
 import asyncio
 import signal
 
-from app_logging import get_logger
-from telegram_forwarder_bot import TelegramForwarderBot
+from .app_logging import get_logger
+from .bot import TelegramForwarderBot
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,3 @@ async def main() -> None:
             logger.exception("Failed to shut down the bot.")
         finally:
             loop.remove_signal_handler(signal.SIGTERM)
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from migrate_storage import migrate
-from storage import KeywordGroup, ResolvedChat, StorageData, StorageFile
+from telegram_forwarder_bot.storage import KeywordGroup, ResolvedChat, StorageData, StorageFile
 
 PICKLED_STORAGE = Path(__file__).parent.parent / "fixtures" / "pickled_storage.db"
 

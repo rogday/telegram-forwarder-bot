@@ -7,10 +7,10 @@ from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient, events
 
-from app_logging import get_logger
-from config import NotifierDynamicConfig
-from monitoring import ChatResolver, MatchEvent
-from storage import KeywordGroup, ResolvedChat, StorageManager
+from .app_logging import get_logger
+from .config import NotifierDynamicConfig
+from .monitoring import ChatResolver, MatchEvent
+from .storage import KeywordGroup, ResolvedChat, StorageManager
 
 logger = get_logger(__name__)
 
