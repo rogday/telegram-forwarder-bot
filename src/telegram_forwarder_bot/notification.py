@@ -12,11 +12,11 @@ from .monitoring import MatchEvent
 logger = get_logger(__name__)
 
 
-def _format_match(event: MatchEvent, timezone: str) -> str:
+def _format_match(event: MatchEvent, timezone: ZoneInfo) -> str:
     date_str = "Unknown"
 
     if event.date:
-        date = event.date.astimezone(ZoneInfo(timezone))
+        date = event.date.astimezone(timezone)
         date_str = date.strftime("%Y-%m-%d %H:%M:%S")
 
     source = event.source_title.replace("`", "")

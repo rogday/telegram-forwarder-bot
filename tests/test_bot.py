@@ -34,7 +34,7 @@ def test_populate_chat_cache_skips_resolution_errors() -> None:
         call("another_available_chat"),
     ]
     bot._storage_manager.subscriptions.remove_chat.assert_not_called()
-    logger.warning.assert_called_once_with(
+    logger.exception.assert_called_once_with(
         "Skipping chat cache population after resolution error",
         identifier="deleted_chat",
     )

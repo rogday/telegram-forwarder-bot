@@ -215,24 +215,19 @@ def _make_metric_recorder(static_config: MetricRecorderStaticConfig,
     if static_config.influxdb3.endpoint is None:  # type: ignore
         return NoopMetricRecorder()
 
-    try:
-        batch_options = WriteOptions(
-            batch_size=500,
-            flush_interval=10_000,
-            max_retries=5,
-        )
-        influxdb_client = InfluxDBClient3(
-            host=static_config.influxdb3.endpoint,  # type: ignore
-            token=static_config.influxdb3.token,  # type: ignore
-            database=static_config.influxdb3.database_name,  # type: ignore
-            write_client_options=write_client_options(
-                write_options=batch_options),
-        )
-        return MetricRecorder(influxdb_client, static_config, dynamic_config)
-    except Exception:
-        logger.exception(
-            "Failed to initialize InfluxDB client with enabled metrics.")
-        raise
+    batch_options = WriteOptions(
+        batch_size=500,
+        flush_interval=10_000,
+        max_retries=5,
+    )
+    influxdb_client = InfluxDBClient3(
+        host=static_config.influxdb3.endpoint,  # type: ignore
+        token=static_config.influxdb3.token,  # type: ignore
+        database=static_config.influxdb3.database_name,  # type: ignore
+        write_client_options=write_client_options(
+            write_options=batch_options),
+    )
+    return MetricRecorder(influxdb_client, static_config, dynamic_config)
 
 
 def init_metric_recorder(static_config: MetricRecorderStaticConfig,

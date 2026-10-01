@@ -107,7 +107,7 @@ class TelegramForwarderBot:
             try:
                 await self._chat_resolver.resolve_cached(username)
             except Exception:
-                logger.warning(
+                logger.exception(
                     "Skipping chat cache population after resolution error",
                     identifier=username,
                 )

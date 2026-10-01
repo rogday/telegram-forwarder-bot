@@ -3,6 +3,7 @@ import contextlib
 import random
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from telethon import TelegramClient, events, utils
@@ -12,7 +13,6 @@ from telethon.tl.types import (
     Channel,
     MessageReplyHeader,
     TypeMessageReplyHeader,
-    datetime,
 )
 
 from .app_logging import get_logger
@@ -44,19 +44,15 @@ class ChatResolver:
         self._cache: dict[int | str, ChatInfo | None] = dict()
 
     async def _query_chat(self, identifier: int | str) -> ChatInfo | None:
-        try:
-            chat = await self._client.get_entity(identifier)
-            if chat is None or not isinstance(chat, Channel) or not chat.username:
-                return None
-            return ChatInfo(
-                id=chat.id,
-                forum=bool(chat.forum),
-                title=chat.title,
-                username=chat.username,
-            )
-        except Exception:
-            logger.exception("Chat resolution error", identifier=identifier)
-            raise
+        chat = await self._client.get_entity(identifier)
+        if chat is None or not isinstance(chat, Channel) or not chat.username:
+            return None
+        return ChatInfo(
+            id=chat.id,
+            forum=bool(chat.forum),
+            title=chat.title,
+            username=chat.username,
+        )
 
     async def resolve_cached(self, identifier: int | str) -> ChatInfo | None:
         if identifier in self._cache:

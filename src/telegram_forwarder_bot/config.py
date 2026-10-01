@@ -1,7 +1,7 @@
 import logging
 from enum import StrEnum
 from pathlib import Path
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, PositiveFloat, PositiveInt, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource
@@ -121,18 +121,7 @@ class ClientDynamicConfig(BaseModel):
 
 
 class NotifierDynamicConfig(BaseModel):
-    timezone: str = "UTC"
-
-    @field_validator("timezone")
-    @classmethod
-    def validate_timezone(cls, value: str) -> str:
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError) as error:
-            raise ValueError(
-                f"timezone must be a valid IANA timezone, got {value!r}"
-            ) from error
-        return value
+    timezone: ZoneInfo = ZoneInfo("UTC")
 
 
 class StorageManagerDynamicConfig(BaseModel):
@@ -206,16 +195,11 @@ class DynamicConfig(BaseSettings):
 
 def load_dynamic_config() -> DynamicConfig:
     """Load dynamic settings, falling back to all defaults on any file error."""
-    default_config = DynamicConfig.model_construct()
     try:
         return DynamicConfig()
     except Exception:
-        try:
-            logger.exception(
-                "Invalid dynamic configuration in %s; using defaults",
-                DYNAMIC_CONFIG_NAME,
-            )
-        except Exception:
-            # Configuration fallback must not depend on telemetry working.
-            pass
-        return default_config
+        logger.exception(
+            "Invalid dynamic configuration in %s; using defaults",
+            DYNAMIC_CONFIG_NAME,
+        )
+        return DynamicConfig.model_construct()

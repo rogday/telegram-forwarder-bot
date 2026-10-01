@@ -1,4 +1,5 @@
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from pydantic import ValidationError
@@ -56,11 +57,11 @@ def test_bounded_integer_fields_accept_one_and_reject_non_positive_values(
 
 @pytest.mark.parametrize("timezone", ["UTC", "America/New_York"])
 def test_notifier_accepts_iana_timezones(timezone: str) -> None:
-    assert NotifierDynamicConfig(timezone=timezone).timezone == timezone
+    assert NotifierDynamicConfig(timezone=timezone).timezone == ZoneInfo(timezone)
 
 
 def test_notifier_rejects_unknown_timezone() -> None:
-    with pytest.raises(ValidationError, match="valid IANA timezone"):
+    with pytest.raises(ValidationError, match="invalid timezone"):
         NotifierDynamicConfig(timezone="Nowhere/Imaginary")
 
 
@@ -125,24 +126,6 @@ def test_invalid_dynamic_reload_preserves_current_config(
         _reload_and_notify([received_configs.append])
 
     assert received_configs == []
-
-
-def test_dynamic_fallback_survives_logging_failure(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / ".dynamic.yml").write_text(
-        "monitor:\n  ping_interval_seconds: 0\n",
-        encoding="utf-8",
-    )
-
-    def fail_to_log(*args: object, **kwargs: object) -> None:
-        raise RuntimeError("logging unavailable")
-
-    monkeypatch.setattr("telegram_forwarder_bot.config.logger.exception", fail_to_log)
-
-    assert load_dynamic_config() == DynamicConfig.model_construct()
 
 
 def test_telemetry_instance_id_defaults_to_directory_name(
