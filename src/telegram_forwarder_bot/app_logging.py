@@ -56,7 +56,8 @@ logging.basicConfig(
 
 class LogManager:
     def __init__(self, dynamic_config: LogManagerDynamicConfig):
-        self.on_config_update(dynamic_config)
+        self._dynamic_config = dynamic_config
+        self._apply_config(dynamic_config)
 
     @staticmethod
     def _apply_config(config: LogManagerDynamicConfig) -> None:
@@ -94,6 +95,9 @@ class LogManager:
         _logger.configure(extra=dict(service=config.service_name, source="app"))
 
     def on_config_update(self, dynamic_config: LogManagerDynamicConfig) -> None:
+        # Reapplying removes and re-adds every sink, losing lines logged in between
+        if dynamic_config == self._dynamic_config:
+            return
         self._dynamic_config = dynamic_config
         self._apply_config(dynamic_config)
 

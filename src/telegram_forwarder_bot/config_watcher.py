@@ -1,4 +1,6 @@
+import asyncio
 from collections.abc import Callable
+from functools import partial
 from pathlib import Path
 from threading import Lock, Timer
 
@@ -12,7 +14,7 @@ from .config import DYNAMIC_CONFIG_NAME, ConfigWatcherStaticConfig, DynamicConfi
 logger = get_logger(__name__)
 
 
-def _load_dynamic_config(callbacks: list[Callable]) -> DynamicConfig:
+def _reload_and_notify(callbacks: list[Callable]) -> DynamicConfig:
     if not Path(DYNAMIC_CONFIG_NAME).is_file():
         raise FileNotFoundError(DYNAMIC_CONFIG_NAME)
     loaded_config = DynamicConfig()
@@ -53,7 +55,7 @@ class _ConfigFileHandler(FileSystemEventHandler):
                 return
             self._debounce_timer = None
             try:
-                _load_dynamic_config(self._callbacks)
+                _reload_and_notify(self._callbacks)
             except Exception:
                 logger.exception("Failed to reload dynamic config; keeping current settings")
 
@@ -86,7 +88,11 @@ class ConfigWatcher:
         self._handler: _ConfigFileHandler | None = None
 
     def start(self) -> None:
-        self._handler = _ConfigFileHandler(self._static_config, self._callbacks)
+        # The file is parsed and validated on the watcher's thread, but the
+        # callbacks run on the event loop, like the rest of the bot
+        loop = asyncio.get_running_loop()
+        callbacks = [partial(loop.call_soon_threadsafe, callback) for callback in self._callbacks]
+        self._handler = _ConfigFileHandler(self._static_config, callbacks)
         self._observer.schedule(self._handler, str(
             Path(DYNAMIC_CONFIG_NAME).parent), recursive=False)
         self._observer.start()

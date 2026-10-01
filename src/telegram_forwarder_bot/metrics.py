@@ -346,8 +346,6 @@ class RuntimeInstrumentationManager:
         old_dynamic_config = self._dynamic_config
         self._dynamic_config = dynamic_config
 
-        # NOTE: Thread-safe, but can be in inconsistent state if multiple threads are updating at once.
-        # Which should be almost impossible to trigger under normal circumstances, so we're fine with it.
         if old_dynamic_config.mode != dynamic_config.mode:
             self._apply_instrumentation_mode(dynamic_config)
 

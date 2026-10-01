@@ -1,4 +1,5 @@
-from threading import Event
+import asyncio
+import threading
 from unittest.mock import Mock
 
 import pytest
@@ -58,24 +59,28 @@ def test_reload_debounces_saves_and_preserves_config_on_error(
     assert len(received) == 1
 
 
-def test_watcher_reloads_atomic_replacement(tmp_path, monkeypatch):
+def test_watcher_reloads_atomic_replacement_on_the_event_loop(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     config_path = tmp_path / '.dynamic.yml'
     config_path.write_text('{}\n')
     received = []
-    updated = Event()
 
-    def on_update(config):
-        received.append(config.monitor.ping_interval_seconds)
-        updated.set()
+    async def run():
+        updated = asyncio.Event()
 
-    watcher = ConfigWatcher(ConfigWatcherStaticConfig(), [on_update])
-    watcher.start()
-    try:
-        replacement = tmp_path / 'replacement.yml'
-        replacement.write_text('monitor:\n  ping_interval_seconds: 11\n')
-        replacement.replace(config_path)
-        assert updated.wait(2)
-        assert received == [11]
-    finally:
-        watcher.stop()
+        def on_update(config):
+            received.append((config.monitor.ping_interval_seconds, threading.get_ident()))
+            updated.set()
+
+        watcher = ConfigWatcher(ConfigWatcherStaticConfig(), [on_update])
+        watcher.start()
+        try:
+            replacement = tmp_path / 'replacement.yml'
+            replacement.write_text('monitor:\n  ping_interval_seconds: 11\n')
+            replacement.replace(config_path)
+            await asyncio.wait_for(updated.wait(), 2)
+        finally:
+            watcher.stop()
+
+    asyncio.run(run())
+    assert received == [(11, threading.get_ident())]

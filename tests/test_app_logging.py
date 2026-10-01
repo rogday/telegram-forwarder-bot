@@ -1,6 +1,7 @@
 import logging
 import sys
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from loguru import logger
@@ -73,3 +74,15 @@ def test_log_file_rotates_by_size(restore_logging, tmp_path: Path):
 
     # About 20 serialized lines of a few hundred bytes each fit into 2-3 files
     assert 2 <= len(list(tmp_path.iterdir())) < 5
+
+
+def test_unchanged_config_does_not_reapply_sinks(restore_logging, tmp_path: Path):
+    config = LogManagerDynamicConfig(log_file_path=tmp_path / "app.jsonl")
+    log_manager = LogManager(config)
+
+    with patch.object(LogManager, "_apply_config") as apply_config:
+        log_manager.on_config_update(config.model_copy())
+        apply_config.assert_not_called()
+
+        log_manager.on_config_update(config.model_copy(update={"log_level": "DEBUG"}))
+        apply_config.assert_called_once()

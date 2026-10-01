@@ -20,7 +20,7 @@ from telegram_forwarder_bot.config import (
     StorageManagerDynamicConfig,
     load_dynamic_config,
 )
-from telegram_forwarder_bot.config_watcher import _load_dynamic_config
+from telegram_forwarder_bot.config_watcher import _reload_and_notify
 
 
 @pytest.mark.parametrize(
@@ -122,7 +122,7 @@ def test_invalid_dynamic_reload_preserves_current_config(
     received_configs: list[DynamicConfig] = []
 
     with pytest.raises(ValidationError):
-        _load_dynamic_config([received_configs.append])
+        _reload_and_notify([received_configs.append])
 
     assert received_configs == []
 
