@@ -29,7 +29,7 @@ def _format_match(event: MatchEvent, timezone: str) -> str:
         f"🔍 **Found Match with** [`{keywords}`]:\n"
         f"Source: `{source}`\n"
         f"Time: {date_str}\n"
-        f"[Link]({event.chat.link}/{event.message_id})"
+        f"[Link]({event.chat.message_link(event.message_id)})"
     )
 
 

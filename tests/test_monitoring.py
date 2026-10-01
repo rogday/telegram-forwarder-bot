@@ -1,15 +1,20 @@
 import asyncio
 from contextlib import contextmanager
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
+
+from telethon import utils
+from telethon.tl.types import PeerChannel
 
 from telegram_forwarder_bot.config import (
     MonitorDynamicConfig,
     MonitorStaticConfig,
     RuntimeInstrumentationManagerDynamicConfig,
     RuntimeInstrumentationManagerStaticConfig,
+    StorageManagerDynamicConfig,
 )
 from telegram_forwarder_bot.metrics import RuntimeInstrumentationManager
-from telegram_forwarder_bot.monitoring import Monitor
+from telegram_forwarder_bot.monitoring import ChatInfo, Monitor
+from telegram_forwarder_bot.storage import ChatTopic, Deduplicator, KeywordGroup, Subscriptions
 
 
 def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
@@ -95,3 +100,27 @@ def test_status_log_counts_messages_since_previous_line():
 
     assert [c.kwargs["messages_handled"] for c in logger.info.call_args_list] == [2, 0]
     assert logger.info.call_args.kwargs["status"] is True
+
+
+def test_repost_is_recorded_as_duplicate_and_not_notified():
+    subscriptions = Subscriptions()
+    subscriptions.add_keyword_group(KeywordGroup.from_lists(["python"], []))
+    subscriptions.add_chat(ChatTopic(id=123, topic_id=None, username="chat"))
+    chat_resolver = Mock(resolve_cached=AsyncMock(
+        return_value=ChatInfo(id=123, forum=False, title="Chat", username="chat")))
+    monitor = Monitor(Mock(), subscriptions, Deduplicator(StorageManagerDynamicConfig()),
+                      chat_resolver, MonitorStaticConfig(), MonitorDynamicConfig())
+    event = Mock(is_channel=True, chat_id=utils.get_peer_id(PeerChannel(123)))
+    event.message = Mock(message="python job", id=42, reply_to=None)
+
+    async def receive_twice():
+        await monitor._handle_new_message(event)
+        await monitor._handle_new_message(event)
+
+    with patch("telegram_forwarder_bot.monitoring.get_metric_recorder") as get_recorder:
+        asyncio.run(receive_twice())
+
+    records = [c.args[0].fields for c in get_recorder.return_value.record.call_args_list]
+    assert [(r["is_matched"], r["is_duplicate"]) for r in records] == [(True, False), (True, True)]
+    assert records[0]["message_link"] == "https://t.me/chat/42"
+    assert monitor.get_match_queue().qsize() == 1

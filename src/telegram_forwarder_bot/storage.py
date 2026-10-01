@@ -27,6 +27,9 @@ class ChatTopic:
     def link(self) -> str:
         return _build_link(self.username, self.topic_id)
 
+    def message_link(self, message_id: int) -> str:
+        return f"{self.link}/{message_id}"
+
 
 @dataclass
 class ChatSubscription:

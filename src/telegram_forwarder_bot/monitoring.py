@@ -202,7 +202,7 @@ class Monitor(RuntimeInstrumentationBase):
         # NOTE: Blocking event loop, but too fast for multiprocessing
         is_matched, matched_keywords = self._subscriptions.matcher.match(message_text)
         # Only matched texts are remembered, so other messages can't push them out of the cache
-        is_matched = is_matched and not self._deduplicator.seen_before(message_text)
+        is_duplicate = is_matched and self._deduplicator.seen_before(message_text)
         get_metric_recorder().record(
             MetricRecord(
                 table_name="payload_stats",
@@ -210,12 +210,13 @@ class Monitor(RuntimeInstrumentationBase):
                 fields=dict(
                     size=len(message_text),
                     is_matched=is_matched,
-                    matched_keywords=len(matched_keywords),
-                    message_preview=message_text[:100],
+                    is_duplicate=is_duplicate,
+                    matched_keyword_count=len(matched_keywords),
+                    message_link=chat_topic.message_link(message.id),
                 ),
             )
         )
-        if not is_matched:
+        if not is_matched or is_duplicate:
             return
 
         try:
