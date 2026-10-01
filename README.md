@@ -263,12 +263,20 @@ A message with "python ubuntu" would **not** match either group, but "python mac
 
 Identical message text is treated as a repost and only notifies once while its content hash remains in the configured deduplication cache.
 
+## Running Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
 ## File Structure
 
 ```
 telegram-forwarder-bot/
 ├── run_instance.py           # CLI entry point with Click
-├── requirements.txt          # Python dependencies
+├── requirements.txt          # Runtime dependencies
+├── requirements-dev.txt      # Runtime and test dependencies
 ├── deploy/
 │   ├── Dockerfile            # Bot runtime image
 │   ├── compose.telemetry.yml # Shared telemetry services
