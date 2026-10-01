@@ -16,7 +16,6 @@ storage_manager:
   database_path: "./storage.db"
 
 metric_recorder:
-  telemetry_instance_id: "default-instance"
   influxdb3:
     endpoint:
     token:

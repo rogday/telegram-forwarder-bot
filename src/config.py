@@ -47,7 +47,8 @@ class MetricRecorderStaticConfig(BaseModel):
     influxdb3: InfluxDB3StaticConfig = Field(
         default_factory=InfluxDB3StaticConfig
     )
-    telemetry_instance_id: str = "instance-0"
+    # The instance directory's name, which is also Loki's instance label
+    telemetry_instance_id: str = Field(default_factory=lambda: Path.cwd().name)
 
 
 class RuntimeInstrumentationManagerStaticConfig(BaseModel):

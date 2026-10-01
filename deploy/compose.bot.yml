@@ -15,16 +15,16 @@ services:
     restart: unless-stopped
     logging: *logging
     init: true
-    working_dir: /app/instance
+    working_dir: /app/data/${BOT_INSTANCE_ID}
     command:
       - python
       - /app/run_instance.py
       - --env
-      - /app/instance
+      - /app/data/${BOT_INSTANCE_ID}
     environment:
       PYTHONUNBUFFERED: "1"
     volumes:
-      - "${BOT_DATA_ROOT:-./data}/${BOT_INSTANCE_ID}:/app/instance"
+      - "${BOT_DATA_ROOT:-./data}/${BOT_INSTANCE_ID}:/app/data/${BOT_INSTANCE_ID}"
     networks:
       - telemetry
 

@@ -105,7 +105,6 @@ storage_manager:
   database_path: "./storage.db"
 
 metric_recorder:
-  telemetry_instance_id: "default-instance"
   influxdb3:
     endpoint:
     token:
@@ -160,14 +159,13 @@ Configure each containerized bot instance to write to that database in its `.sta
 
 ```yaml
 metric_recorder:
-  telemetry_instance_id: "my-instance"
   influxdb3:
     endpoint: "http://influxdb:8181"
     token: "apiv3_replace_with_your_token"
     database_name: "metrics"
 ```
 
-Use a distinct `telemetry_instance_id` for every bot. 
+Metrics are tagged with `metric_recorder.telemetry_instance_id`, which defaults to the instance directory name, the same name Loki uses for the `instance` label. Set it only to override that.
 
 ### Configure Grafana
 

@@ -8,6 +8,7 @@ from config import (
     DynamicConfig,
     LogManagerDynamicConfig,
     MetricRecorderDynamicConfig,
+    MetricRecorderStaticConfig,
     MonitorDynamicConfig,
     MonitorStaticConfig,
     NotifierDynamicConfig,
@@ -142,3 +143,16 @@ def test_dynamic_fallback_survives_logging_failure(
     monkeypatch.setattr("config.logger.exception", fail_to_log)
 
     assert load_dynamic_config() == DynamicConfig.model_construct()
+
+
+def test_telemetry_instance_id_defaults_to_directory_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    instance_dir = tmp_path / "my-instance"
+    instance_dir.mkdir()
+    monkeypatch.chdir(instance_dir)
+
+    assert MetricRecorderStaticConfig().telemetry_instance_id == "my-instance"
+    assert MetricRecorderStaticConfig(
+        telemetry_instance_id="custom").telemetry_instance_id == "custom"
