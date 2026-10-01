@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,6 +17,18 @@ def create_client(attempts: int) -> ResilientTelegramClient:
         timeout_seconds=0.05, attempts=attempts,
         min_backoff_seconds=0.01, max_backoff_seconds=0.01))
     return client
+
+
+def test_telethon_call_signature_matches_override():
+    # _call is private, and ~= lets a rebuild pull a newer Telethon 1.x
+    parameters = inspect.signature(TelegramClient._call).parameters.values()
+    assert [(p.name, p.default) for p in parameters] == [
+        ("self", inspect.Parameter.empty),
+        ("sender", inspect.Parameter.empty),
+        ("request", inspect.Parameter.empty),
+        ("ordered", False),
+        ("flood_sleep_threshold", None),
+    ]
 
 
 def test_client_logs_under_its_own_name():
