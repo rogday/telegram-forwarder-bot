@@ -1,12 +1,11 @@
 import hashlib
 import os
-import pickle
 from collections import OrderedDict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Any
 
 import ahocorasick
+from pydantic import BaseModel
 
 from config import StorageManagerDynamicConfig, StorageManagerStaticConfig
 from metrics import RuntimeInstrumentationBase, traceable
@@ -61,15 +60,24 @@ class KeywordGroup:
         return cls(positives=positives_set, negatives=negatives_set)
 
 
+class StorageFile(BaseModel):
+    """The storage file's JSON format, also written by tools/migrate_storage.py."""
+    paused: bool = False
+    keyword_groups: list[KeywordGroup] = []
+    chats: list[MonitoredChat] = []
+    # Oldest first, so the LRU order survives
+    seen_hashes: list[str] = []
+
+
 class StorageData(RuntimeInstrumentationBase):
     def __init__(self, dynamic_config: StorageManagerDynamicConfig | None = None):
-        # Picklable fields
+        # Persisted fields
         self._paused: bool = False
         self._keyword_groups: set[KeywordGroup] = set()
         self._monitored_chats: dict[int, MonitoredChat] = dict()
         self._seen_hashes: OrderedDict[str, None] = OrderedDict()
 
-        # Unpicklable and derived fields
+        # Derived fields
         self._automaton: ahocorasick.Automaton | None = None
         self._chat_ids_by_username: dict[str, int] = dict()
         self._dynamic_config = dynamic_config
@@ -77,23 +85,25 @@ class StorageData(RuntimeInstrumentationBase):
     def on_config_update(self, dynamic_config: StorageManagerDynamicConfig) -> None:
         self._dynamic_config = dynamic_config
 
-    @staticmethod
-    def _pop_unpicklable(state: dict[str, Any]) -> None:
-        for key in ("_dynamic_config", "_automaton", "_chat_ids_by_username"):
-            state.pop(key, None)
+    @classmethod
+    def from_file(cls, file: StorageFile,
+                  dynamic_config: StorageManagerDynamicConfig) -> "StorageData":
+        data = cls(dynamic_config)
+        data._paused = file.paused
+        data._keyword_groups = set(file.keyword_groups)
+        data._monitored_chats = {chat.id: chat for chat in file.chats}
+        data._seen_hashes = OrderedDict.fromkeys(file.seen_hashes)
+        data._build_chat_index()
+        data._build_automaton()
+        return data
 
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        self._pop_unpicklable(state)
-        return state
-
-    # Called when unpickling, so that we have new fields even if db on disk was old
-    def __setstate__(self, state):
-        self.__init__()
-        self._pop_unpicklable(state)
-        self.__dict__.update(state)
-        self._build_chat_index()
-        self._build_automaton()
+    def to_file(self) -> StorageFile:
+        return StorageFile(
+            paused=self._paused,
+            keyword_groups=list(self._keyword_groups),
+            chats=list(self._monitored_chats.values()),
+            seen_hashes=list(self._seen_hashes),
+        )
 
     def _build_chat_index(self) -> None:
         self._chat_ids_by_username = {
@@ -252,9 +262,8 @@ class StorageManager:
         self.data: StorageData = StorageData(dynamic_config)
         database_path = self._static_config.database_path
         if database_path.exists():
-            with open(database_path, "rb") as f:
-                self.data = pickle.load(f)
-                self.data._dynamic_config = dynamic_config
+            file = StorageFile.model_validate_json(database_path.read_bytes())
+            self.data = StorageData.from_file(file, dynamic_config)
 
     def on_config_update(self, dynamic_config: StorageManagerDynamicConfig) -> None:
         self._dynamic_config = dynamic_config
@@ -263,7 +272,9 @@ class StorageManager:
     def flush(self) -> None:
         database_path = self._static_config.database_path
         tmp = database_path.with_suffix(".tmp")
-        with open(tmp, "wb") as f:
-            pickle.dump(self.data, f)
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(self.data.to_file().model_dump_json(indent=2))
+            f.flush()
+            os.fsync(f.fileno())
 
         os.replace(tmp, database_path)

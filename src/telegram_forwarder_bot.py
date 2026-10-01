@@ -114,9 +114,6 @@ class TelegramForwarderBot:
 
         self._config_watcher.start()
 
-        # Force update of storage in case of pending migrations
-        self._storage_manager.flush()
-
         await self._user_client.start(  # type: ignore
             phone=self._static_config.client.admin_phone)
 

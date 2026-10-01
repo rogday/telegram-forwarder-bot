@@ -11,7 +11,7 @@ A multi-instance Telegram bot that monitors specified chat groups and topics for
 - **Multi-instance support** - Run multiple independent bot instances, each with its own configuration
 - **Flexible subscription model** - Subscribe/unsubscribe to groups via URL links or explicit commands
 - **Pause/resume notifications** - Temporarily halt notifications without losing subscriptions
-- **Persistent storage** - Uses Python `pickle` with atomic file replacement for durable state persistence across restarts
+- **Persistent storage** - Keeps subscriptions and the deduplication cache in a JSON file, replaced atomically on every save
 - **Metrics collection** - Optional InfluxDB3 integration for performance and usage metrics
 
 ## Architecture
@@ -46,7 +46,6 @@ graph TD
 
 - **Python 3.12+** with `asyncio` for asynchronous operation
 - **Telethon** - Telegram MTProto API client library
-- **pickle** - Persistent key-value storage with atomic file replacement
 - **Click** - Command-line interface framework
 - **pyahocorasick** - Fast multi-pattern string matching
 - **InfluxDB3** (optional) - Time-series metrics storage

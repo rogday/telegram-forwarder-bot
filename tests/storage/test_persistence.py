@@ -1,50 +1,41 @@
 """Serialization and persistence tests for storage.py."""
 
-import pickle
+import shutil
+from pathlib import Path
 
-from storage import KeywordGroup, ResolvedChat
+from migrate_storage import migrate
+from storage import KeywordGroup, ResolvedChat, StorageData, StorageFile
+
+PICKLED_STORAGE = Path(__file__).parent.parent / "fixtures" / "pickled_storage.db"
 
 
 class TestSerialization:
-    """Tests for StorageData pickling/unpickling."""
+    """Tests for converting StorageData to and from the storage file."""
 
-    def test_pickle_roundtrip(self, storage_data_class):
+    def test_json_roundtrip(self, storage_data_class, storage_dynamic_config):
         data = storage_data_class()
-        data.add_keyword_group(KeywordGroup.from_lists(["hello", "world"], []))
+        data.toggle_paused()
+        data.add_keyword_group(KeywordGroup.from_lists(["hello", "world"], ["bye"]))
         data.add_chat(ResolvedChat(username="test", id=123456, topic_id=789))
+        data.add_chat(ResolvedChat(username="test", id=123456, topic_id=None))
+        data.matches_keywords("hello world")  # Remembers the message hash
 
-        # Pickle and unpickle
-        pickled = pickle.dumps(data)
-        restored = pickle.loads(pickled)
+        file = StorageFile.model_validate_json(data.to_file().model_dump_json())
+        restored = StorageData.from_file(file, storage_dynamic_config)
 
-        assert restored.paused() == data.paused()
-        assert restored.keyword_group_count() == data.keyword_group_count()
-        assert restored.chat_count() == data.chat_count()
+        assert restored.paused()
+        assert list(restored.list_keyword_groups()) == ["hello_world_!bye"]
         assert restored.find_chat("TEST", 789) == ResolvedChat(
             username="test", id=123456, topic_id=789
         )
-        # Automaton should be rebuilt after unpickling
-        assert restored._automaton is not None
+        # Automaton is rebuilt, and the remembered hash marks a repost
+        assert restored.matches_keywords("hello world") == (False, {"hello", "world"})
+        assert restored.matches_keywords("hello again, world") == (True, {"hello", "world"})
 
-    def test_unpickle_restores_automaton(
-        self, storage_data_class, storage_dynamic_config
-    ):
-        data = storage_data_class()
-        data.add_keyword_group(KeywordGroup.from_lists(["test"], []))
-
-        pickled = pickle.dumps(data)
-        restored = pickle.loads(pickled)
-        restored.on_config_update(storage_dynamic_config)
-
-        matched, found = restored.matches_keywords("this is a test message")
-        assert matched
-        assert "test" in found
-
-    def test_unpickle_with_no_keywords(self, storage_data_class):
+    def test_restore_with_no_keywords(self, storage_data_class, storage_dynamic_config):
         data = storage_data_class()
 
-        pickled = pickle.dumps(data)
-        restored = pickle.loads(pickled)
+        restored = StorageData.from_file(data.to_file(), storage_dynamic_config)
 
         assert restored._automaton is None
         matched, found = restored.matches_keywords("any text")
@@ -95,3 +86,20 @@ class TestStorageManager:
         restored = storage_manager_class(db_path)
         assert restored.data.keyword_group_count() == 2
         assert restored.data.chat_count() == 2
+
+    def test_loads_storage_converted_by_migration_tool(self, storage_manager_class, tmp_path):
+        db_path = tmp_path / "storage.db"
+        shutil.copy(PICKLED_STORAGE, db_path)
+        migrate(db_path)
+
+        data = storage_manager_class(db_path).data
+
+        assert data.paused()
+        assert sorted(data.list_keyword_groups()) == [
+            "machine-learning_python_!course", "работа"]
+        assert data.find_chat("somegroup", 5) == ResolvedChat(
+            username="SomeGroup", id=1234567890, topic_id=5)
+        assert data.is_chat_id_monitored(987654321)
+        # "first message" is in the converted dedup cache
+        data.add_keyword_group(KeywordGroup.from_lists(["message"], []))
+        assert data.matches_keywords("first message") == (False, {"message"})
