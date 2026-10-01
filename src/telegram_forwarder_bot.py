@@ -166,6 +166,13 @@ class TelegramForwarderBot:
             except Exception:
                 logger.exception(f"Failed to shut down {name}.")
 
+        # Saves the dedup hashes seen since the last admin command. Both clients
+        # are disconnected, so no handler can change storage anymore.
+        try:
+            self._storage_manager.flush()
+        except Exception:
+            logger.exception("Failed to save storage.")
+
         logger.info(
             "Teardown complete. Flushing logs and terminating.")
         await self._log_manager.stop()

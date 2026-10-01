@@ -44,6 +44,7 @@ def test_stop_continues_after_resource_failure():
     bot._monitor = Mock(stop=AsyncMock())
     bot._user_client = Mock(disconnect=AsyncMock(side_effect=RuntimeError('disconnect failed')))
     bot._bot_client = Mock(disconnect=AsyncMock())
+    bot._storage_manager = Mock(flush=Mock(side_effect=OSError('disk full')))
     bot._log_manager = Mock(stop=AsyncMock())
     recorder = Mock(stop=AsyncMock())
 
@@ -54,6 +55,7 @@ def test_stop_continues_after_resource_failure():
     bot._monitor.stop.assert_awaited_once()
     bot._bot_client.disconnect.assert_awaited_once()
     recorder.stop.assert_awaited_once()
+    bot._storage_manager.flush.assert_called_once()
     bot._log_manager.stop.assert_awaited_once()
 
 
