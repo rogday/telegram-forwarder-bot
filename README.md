@@ -1,6 +1,6 @@
 # Telegram Forwarder Bot
 
-> **Note:** Major part of this codebase was generated with **Qwen3.6 35B MoE** running locally via **llama.cpp** and **Zoo Code**. Later versions refined with **GPT 5.6 Sol - Medium**.
+> **Note:** Major part of this codebase was generated with **Qwen3.6 35B MoE** running locally via **llama.cpp** and **Zoo Code**. Later versions refined with **Claude Opus 5.5**.
 
 A multi-instance Telegram bot that monitors specified chat groups and topics for keyword matches, forwarding notifications to an admin user in real-time.
 
