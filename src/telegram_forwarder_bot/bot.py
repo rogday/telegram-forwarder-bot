@@ -65,7 +65,8 @@ class TelegramForwarderBot:
         self._chat_resolver: ChatResolver = ChatResolver(self._user_client)
 
         self._monitor: Monitor = Monitor(
-            self._user_client, self._storage_manager.data, self._chat_resolver,
+            self._user_client, self._storage_manager.subscriptions,
+            self._storage_manager.deduplicator, self._chat_resolver,
             self._static_config.monitor,
             self._dynamic_config.monitor)
         get_metric_recorder().set_health_check(self._monitor.health)
@@ -105,7 +106,7 @@ class TelegramForwarderBot:
             *(
                 # FIXME: should be list[str] instead, and add support for list of chats to resolver as well.
                 resolve_chat(chat.username)
-                for chat in self._storage_manager.data.list_chats()
+                for chat in self._storage_manager.subscriptions.list_chats()
             )
         )
 

@@ -1,7 +1,7 @@
 import hashlib
 import os
 from collections import OrderedDict
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 
 import ahocorasick
@@ -18,7 +18,7 @@ def _build_link(username: str, topic_id: int | None) -> str:
 
 
 @dataclass(frozen=True)
-class ResolvedChat:
+class ChatTopic:
     id: int
     topic_id: int | None
     username: str = field(compare=False)
@@ -28,19 +28,12 @@ class ResolvedChat:
         return _build_link(self.username, self.topic_id)
 
 
-@dataclass(frozen=True)
-class MonitoredChat:
+@dataclass
+class ChatSubscription:
     id: int
-    username: str = field(compare=False)
+    username: str
+    # None means the whole chat
     topic_ids: set[int | None]
-
-    @staticmethod
-    def from_resolved(resolved: ResolvedChat) -> "MonitoredChat":
-        return MonitoredChat(
-            id=resolved.id,
-            username=resolved.username,
-            topic_ids=set([resolved.topic_id]),
-        )
 
     def get_links(self, delimiter: str = ", ") -> str:
         return delimiter.join(
@@ -64,65 +57,95 @@ class StorageFile(BaseModel):
     """The storage file's JSON format, also written by tools/migrate_storage.py."""
     paused: bool = False
     keyword_groups: list[KeywordGroup] = []
-    chats: list[MonitoredChat] = []
+    chats: list[ChatSubscription] = []
     # Oldest first, so the LRU order survives
     seen_hashes: list[str] = []
 
 
-class StorageData(RuntimeInstrumentationBase):
-    def __init__(self, dynamic_config: StorageManagerDynamicConfig | None = None):
-        # Persisted fields
-        self._paused: bool = False
-        self._keyword_groups: set[KeywordGroup] = set()
-        self._monitored_chats: dict[int, MonitoredChat] = dict()
-        self._seen_hashes: OrderedDict[str, None] = OrderedDict()
+class KeywordMatcher(RuntimeInstrumentationBase):
+    """Immutable, so build a new one when the groups change."""
 
-        # Derived fields
+    def __init__(self, groups: Iterable[KeywordGroup] = ()):
+        self._groups = frozenset(groups)
         self._automaton: ahocorasick.Automaton | None = None
-        self._chat_ids_by_username: dict[str, int] = dict()
-        self._dynamic_config = dynamic_config
-
-    def on_config_update(self, dynamic_config: StorageManagerDynamicConfig) -> None:
-        self._dynamic_config = dynamic_config
-
-    @classmethod
-    def from_file(cls, file: StorageFile,
-                  dynamic_config: StorageManagerDynamicConfig) -> "StorageData":
-        data = cls(dynamic_config)
-        data._paused = file.paused
-        data._keyword_groups = set(file.keyword_groups)
-        data._monitored_chats = {chat.id: chat for chat in file.chats}
-        data._seen_hashes = OrderedDict.fromkeys(file.seen_hashes)
-        data._build_chat_index()
-        data._build_automaton()
-        return data
-
-    def to_file(self) -> StorageFile:
-        return StorageFile(
-            paused=self._paused,
-            keyword_groups=list(self._keyword_groups),
-            chats=list(self._monitored_chats.values()),
-            seen_hashes=list(self._seen_hashes),
-        )
-
-    def _build_chat_index(self) -> None:
-        self._chat_ids_by_username = {
-            chat.username.casefold(): chat.id
-            for chat in self._monitored_chats.values()
-        }
+        self._build_automaton()
 
     @traceable
     def _build_automaton(self) -> None:
-        if not self._keyword_groups:
-            self._automaton = None
+        if not self._groups:
             return
 
         automaton = ahocorasick.Automaton()
-        for group in self._keyword_groups:
+        for group in self._groups:
             for keyword in group.positives | group.negatives:
                 automaton.add_word(keyword, keyword)
         automaton.make_automaton()
         self._automaton = automaton
+
+    @traceable
+    def match(self, text: str) -> tuple[bool, set[str]]:
+        """Returns whether a group matched, and every keyword found in the text.
+
+        The keywords include ones from other groups, exclusions too, by design:
+        they give the reader more context.
+        """
+        found_keywords: set[str] = set()
+        if self._automaton is None:
+            return False, found_keywords
+
+        text_lower = text.lower()
+        for end_index, keyword in self._automaton.iter(text_lower):
+            start_index = end_index - len(keyword) + 1
+            # Register match only at the start of a word
+            if start_index == 0 or not text_lower[start_index - 1].isalpha():
+                found_keywords.add(keyword)
+
+        is_matched = any(
+            found_keywords.issuperset(group.positives)
+            and not found_keywords.intersection(group.negatives)
+            for group in self._groups
+        )
+        return is_matched, found_keywords
+
+
+class Deduplicator:
+    def __init__(self, dynamic_config: StorageManagerDynamicConfig,
+                 seen_hashes: Iterable[str] = ()):
+        self._dynamic_config = dynamic_config
+        self._seen_hashes: OrderedDict[str, None] = OrderedDict.fromkeys(seen_hashes)
+
+    def on_config_update(self, dynamic_config: StorageManagerDynamicConfig) -> None:
+        self._dynamic_config = dynamic_config
+
+    def seen_before(self, text: str) -> bool:
+        """Returns whether text was seen before, and remembers it."""
+        config = self._dynamic_config  # so that we read consistent state of config
+        if not config.dedup_enabled:
+            return False
+
+        digest = hashlib.sha256(text.encode()).hexdigest()[:16]
+        if digest in self._seen_hashes:
+            self._seen_hashes.move_to_end(digest)
+            return True
+        self._seen_hashes[digest] = None
+        while len(self._seen_hashes) > config.dedup_cache_size:
+            self._seen_hashes.popitem(last=False)
+        return False
+
+    def seen_hashes(self) -> list[str]:
+        return list(self._seen_hashes)
+
+
+class Subscriptions:
+    def __init__(self, paused: bool = False, keyword_groups: Iterable[KeywordGroup] = (),
+                 chats: Iterable[ChatSubscription] = ()):
+        self._paused = paused
+        self._keyword_groups: set[KeywordGroup] = set(keyword_groups)
+        self._chats: dict[int, ChatSubscription] = {chat.id: chat for chat in chats}
+        self._chat_ids_by_username: dict[str, int] = {
+            chat.username.casefold(): chat.id for chat in self._chats.values()
+        }
+        self.matcher = KeywordMatcher(self._keyword_groups)
 
     def toggle_paused(self):
         self._paused ^= True
@@ -132,14 +155,17 @@ class StorageData(RuntimeInstrumentationBase):
 
     def add_keyword_group(self, group: KeywordGroup) -> None:
         self._keyword_groups.add(group)
-        self._build_automaton()
+        self.matcher = KeywordMatcher(self._keyword_groups)
 
     def remove_keyword_group(self, group: KeywordGroup) -> bool:
-        if group in self._keyword_groups:
-            self._keyword_groups.discard(group)
-            self._build_automaton()
-            return True
-        return False
+        if group not in self._keyword_groups:
+            return False
+        self._keyword_groups.discard(group)
+        self.matcher = KeywordMatcher(self._keyword_groups)
+        return True
+
+    def keyword_groups(self) -> Iterator[KeywordGroup]:
+        yield from self._keyword_groups
 
     def list_keyword_groups(self) -> Iterator[str]:
         for group in self._keyword_groups:
@@ -152,128 +178,80 @@ class StorageData(RuntimeInstrumentationBase):
     def keyword_group_count(self) -> int:
         return len(self._keyword_groups)
 
-    def _is_duplicate(self, text: str) -> bool:
-        config = self._dynamic_config  # so that we read consistent state of config
-        assert config is not None
-
-        if not config.dedup_enabled:
-            return False
-
-        hash = hashlib.sha256(text.encode()).hexdigest()[:16]
-        if hash in self._seen_hashes:
-            self._seen_hashes.move_to_end(hash)
-            return True
-        self._seen_hashes[hash] = None
-        while len(self._seen_hashes) > config.dedup_cache_size:
-            self._seen_hashes.popitem(last=False)
-
-        return False
-
-    @traceable
-    def matches_keywords(self, text: str) -> tuple[bool, set[str]]:
-        found_keywords: set[str] = set()
-        if not self._keyword_groups or self._automaton is None:
-            return False, found_keywords
-
-        text_lower = text.lower()
-        for end_index, keyword in self._automaton.iter(text_lower):
-            start_index = end_index - len(keyword) + 1
-            # Register match only at the start of a word
-            if start_index == 0 or not text_lower[start_index - 1].isalpha():
-                found_keywords.add(keyword)
-
-        if not found_keywords:
-            return False, found_keywords
-
-        for group in self._keyword_groups:
-            if found_keywords.issuperset(
-                group.positives
-            ) and not found_keywords.intersection(group.negatives):
-                # Matches should be rarer than non-matches, so we're checking for duplicates here
-                if self._is_duplicate(text):
-                    return False, found_keywords
-                # It's a group match, but let's return all keywords found in the message
-                return True, found_keywords
-
-        return False, found_keywords
-
-    def add_chat(self, chat: ResolvedChat) -> None:
-        monitored = self._monitored_chats.setdefault(
-            chat.id, MonitoredChat.from_resolved(chat)
+    def add_chat(self, chat_topic: ChatTopic) -> None:
+        subscription = self._chats.setdefault(
+            chat_topic.id,
+            ChatSubscription(id=chat_topic.id, username=chat_topic.username, topic_ids=set()),
         )
-        self._chat_ids_by_username[monitored.username.casefold(
-        )] = monitored.id
-        monitored.topic_ids.add(chat.topic_id)
+        self._chat_ids_by_username[subscription.username.casefold()] = subscription.id
+        subscription.topic_ids.add(chat_topic.topic_id)
 
-    def remove_chat(self, resolved_chat: ResolvedChat) -> bool:
-        if resolved_chat.id not in self._monitored_chats:
+    def remove_chat(self, chat_topic: ChatTopic) -> bool:
+        subscription = self._chats.get(chat_topic.id)
+        if subscription is None or chat_topic.topic_id not in subscription.topic_ids:
             return False
-        monitored_chat = self._monitored_chats[resolved_chat.id]
-        if resolved_chat.topic_id not in monitored_chat.topic_ids:
-            return False
-        monitored_chat.topic_ids.remove(resolved_chat.topic_id)
-        if not monitored_chat.topic_ids:
-            del self._monitored_chats[resolved_chat.id]
-            username = monitored_chat.username.casefold()
-            if self._chat_ids_by_username.get(username) == resolved_chat.id:
+        subscription.topic_ids.remove(chat_topic.topic_id)
+        if not subscription.topic_ids:
+            del self._chats[chat_topic.id]
+            username = subscription.username.casefold()
+            if self._chat_ids_by_username.get(username) == chat_topic.id:
                 del self._chat_ids_by_username[username]
         return True
 
-    def find_chat(
-        self, username: str, topic_id: int | None
-    ) -> ResolvedChat | None:
+    def find_chat(self, username: str, topic_id: int | None) -> ChatTopic | None:
         chat_id = self._chat_ids_by_username.get(username.casefold())
         if chat_id is None:
             return None
-        monitored_chat = self._monitored_chats[chat_id]
-        if topic_id not in monitored_chat.topic_ids:
+        subscription = self._chats[chat_id]
+        if topic_id not in subscription.topic_ids:
             return None
-        return ResolvedChat(
-            id=monitored_chat.id,
-            topic_id=topic_id,
-            username=monitored_chat.username,
-        )
+        return ChatTopic(id=subscription.id, topic_id=topic_id, username=subscription.username)
 
     def is_chat_id_monitored(self, chat_id: int) -> bool:
-        return chat_id in self._monitored_chats
+        return chat_id in self._chats
 
-    def is_resolved_chat_monitored(self, resolved_chat: ResolvedChat) -> bool:
-        if resolved_chat.id not in self._monitored_chats:
+    def is_topic_monitored(self, chat_topic: ChatTopic) -> bool:
+        subscription = self._chats.get(chat_topic.id)
+        if subscription is None:
             return False
-        monitored_chat = self._monitored_chats[resolved_chat.id]
         return (
-            resolved_chat.topic_id in monitored_chat.topic_ids
-            or None in monitored_chat.topic_ids
+            chat_topic.topic_id in subscription.topic_ids
+            or None in subscription.topic_ids
         )
 
-    def list_chats(self) -> Iterator[MonitoredChat]:
-        yield from self._monitored_chats.values()
+    def list_chats(self) -> Iterator[ChatSubscription]:
+        yield from self._chats.values()
 
     def chat_count(self) -> int:
-        return len(self._monitored_chats)
+        return len(self._chats)
 
 
 class StorageManager:
     def __init__(self, static_config: StorageManagerStaticConfig,
                  dynamic_config: StorageManagerDynamicConfig):
         self._static_config = static_config
-        self._dynamic_config = dynamic_config
 
-        self.data: StorageData = StorageData(dynamic_config)
         database_path = self._static_config.database_path
+        file = StorageFile()
         if database_path.exists():
             file = StorageFile.model_validate_json(database_path.read_bytes())
-            self.data = StorageData.from_file(file, dynamic_config)
+        self.subscriptions = Subscriptions(file.paused, file.keyword_groups, file.chats)
+        self.deduplicator = Deduplicator(dynamic_config, file.seen_hashes)
 
     def on_config_update(self, dynamic_config: StorageManagerDynamicConfig) -> None:
-        self._dynamic_config = dynamic_config
-        self.data.on_config_update(self._dynamic_config)
+        self.deduplicator.on_config_update(dynamic_config)
 
     def flush(self) -> None:
+        file = StorageFile(
+            paused=self.subscriptions.paused(),
+            keyword_groups=list(self.subscriptions.keyword_groups()),
+            chats=list(self.subscriptions.list_chats()),
+            seen_hashes=self.deduplicator.seen_hashes(),
+        )
         database_path = self._static_config.database_path
         tmp = database_path.with_suffix(".tmp")
         with open(tmp, "w", encoding="utf-8") as f:
-            f.write(self.data.to_file().model_dump_json(indent=2))
+            f.write(file.model_dump_json(indent=2))
             f.flush()
             os.fsync(f.fileno())
 

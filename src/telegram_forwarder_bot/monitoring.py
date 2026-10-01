@@ -24,13 +24,13 @@ from .metrics import (
     profileable,
     traceable,
 )
-from .storage import ResolvedChat, StorageData
+from .storage import ChatTopic, Deduplicator, Subscriptions
 
 logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
-class CachedChat:
+class ChatInfo:
     id: int
     forum: bool
     title: str
@@ -41,14 +41,14 @@ class ChatResolver:
     def __init__(self, client: TelegramClient) -> None:
         self._client: TelegramClient = client
         # FIXME: Add cache updater with configurable interval
-        self._cache: dict[int | str, CachedChat | None] = dict()
+        self._cache: dict[int | str, ChatInfo | None] = dict()
 
-    async def _query_chat(self, identifier: int | str) -> CachedChat | None:
+    async def _query_chat(self, identifier: int | str) -> ChatInfo | None:
         try:
             chat = await self._client.get_entity(identifier)
             if chat is None or not isinstance(chat, Channel) or not chat.username:
                 return None
-            return CachedChat(
+            return ChatInfo(
                 id=chat.id,
                 forum=bool(chat.forum),
                 title=chat.title,
@@ -58,7 +58,7 @@ class ChatResolver:
             logger.exception("Chat resolution error", identifier=identifier)
             raise
 
-    async def resolve_cached(self, identifier: int | str) -> CachedChat | None:
+    async def resolve_cached(self, identifier: int | str) -> ChatInfo | None:
         if identifier in self._cache:
             return self._cache[identifier]
 
@@ -75,17 +75,17 @@ class ChatResolver:
 
     async def resolve(
         self, identifier: int | str, topic_id: int | None
-    ) -> ResolvedChat | None:
+    ) -> ChatTopic | None:
         chat = await self.resolve_cached(identifier)
         if chat is None:
             return None
-        return ResolvedChat(id=chat.id, topic_id=topic_id, username=chat.username)
+        return ChatTopic(id=chat.id, topic_id=topic_id, username=chat.username)
 
 
 @dataclass(frozen=True)
 class MatchEvent:
     source_title: str
-    chat: ResolvedChat
+    chat: ChatTopic
     message_id: int
     date: datetime | None
     matched_keywords: set[str]
@@ -95,7 +95,8 @@ class Monitor(RuntimeInstrumentationBase):
     def __init__(
         self,
         client: TelegramClient,
-        storage: StorageData,
+        subscriptions: Subscriptions,
+        deduplicator: Deduplicator,
         chat_resolver: ChatResolver,
         static_config: MonitorStaticConfig,
         dynamic_config: MonitorDynamicConfig
@@ -106,7 +107,8 @@ class Monitor(RuntimeInstrumentationBase):
         self._force_sync_task: asyncio.Task | None = None
         self._status_task: asyncio.Task | None = None
         self._client: TelegramClient = client
-        self._storage: StorageData = storage
+        self._subscriptions: Subscriptions = subscriptions
+        self._deduplicator: Deduplicator = deduplicator
         self._match_queue: asyncio.Queue[MatchEvent] = asyncio.Queue(
             maxsize=self._static_config.match_queue_size)
         self._chat_resolver: ChatResolver = chat_resolver
@@ -162,7 +164,7 @@ class Monitor(RuntimeInstrumentationBase):
     @profileable
     @traceable
     async def _handle_new_message_impl(self, event: events.NewMessage.Event) -> None:
-        if self._storage.paused():
+        if self._subscriptions.paused():
             return
 
         message: TelethonMessage = event.message  # type: ignore
@@ -182,24 +184,25 @@ class Monitor(RuntimeInstrumentationBase):
         chat_id, _ = utils.resolve_id(chat_id)
         logger.debug("Got Chat id from message", chat_id=chat_id)
 
-        if not self._storage.is_chat_id_monitored(chat_id):
+        if not self._subscriptions.is_chat_id_monitored(chat_id):
             return
 
         logger.debug("Chat id is monitored", chat_id=chat_id)
-        cached_chat = await self._chat_resolver.resolve_cached(chat_id)
-        logger.debug("Got CachedChat", cached_chat=cached_chat)
+        chat_info = await self._chat_resolver.resolve_cached(chat_id)
+        logger.debug("Got ChatInfo", chat_info=chat_info)
 
         # No username if private group chat
-        if not cached_chat or not cached_chat.username:
+        if not chat_info or not chat_info.username:
             return
-        resolved_chat = self._get_resolved_chat(cached_chat, message.reply_to)
-        logger.debug("Got ResolvedChat", resolved_chat=resolved_chat)
-        if not self._storage.is_resolved_chat_monitored(resolved_chat):
+        chat_topic = self._get_chat_topic(chat_info, message.reply_to)
+        logger.debug("Got ChatTopic", chat_topic=chat_topic)
+        if not self._subscriptions.is_topic_monitored(chat_topic):
             return
 
         # NOTE: Blocking event loop, but too fast for multiprocessing
-        is_matched, matched_keywords = self._storage.matches_keywords(
-            message_text)
+        is_matched, matched_keywords = self._subscriptions.matcher.match(message_text)
+        # Only matched texts are remembered, so other messages can't push them out of the cache
+        is_matched = is_matched and not self._deduplicator.seen_before(message_text)
         get_metric_recorder().record(
             MetricRecord(
                 table_name="payload_stats",
@@ -218,8 +221,8 @@ class Monitor(RuntimeInstrumentationBase):
         try:
             self._match_queue.put_nowait(
                 MatchEvent(
-                    source_title=cached_chat.title,
-                    chat=resolved_chat,
+                    source_title=chat_info.title,
+                    chat=chat_topic,
                     message_id=message.id,
                     date=message.date,
                     matched_keywords=matched_keywords,
@@ -240,9 +243,9 @@ class Monitor(RuntimeInstrumentationBase):
         except Exception:
             logger.exception("Monitor error")
 
-    def _get_resolved_chat(
-        self, chat: CachedChat, reply_header: TypeMessageReplyHeader | None
-    ) -> ResolvedChat:
+    def _get_chat_topic(
+        self, chat: ChatInfo, reply_header: TypeMessageReplyHeader | None
+    ) -> ChatTopic:
         is_forum = chat.forum
         topic_id = None
         if reply_header is not None:
@@ -256,4 +259,4 @@ class Monitor(RuntimeInstrumentationBase):
         elif is_forum:
             topic_id = 1
 
-        return ResolvedChat(id=chat.id, topic_id=topic_id, username=chat.username)
+        return ChatTopic(id=chat.id, topic_id=topic_id, username=chat.username)

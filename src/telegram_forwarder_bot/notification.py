@@ -10,7 +10,7 @@ from telethon import TelegramClient, events
 from .app_logging import get_logger
 from .config import NotifierDynamicConfig
 from .monitoring import ChatResolver, MatchEvent
-from .storage import KeywordGroup, ResolvedChat, StorageManager
+from .storage import ChatTopic, KeywordGroup, StorageManager
 
 logger = get_logger(__name__)
 
@@ -57,7 +57,7 @@ class Notifier:
         self._match_queue = match_queue
         self._admin_id = admin_id
         self._chat_resolver = chat_resolver
-        self._data = storage.data
+        self._subscriptions = storage.subscriptions
         self._client.add_event_handler(
             self._route_command, events.NewMessage())
 
@@ -120,7 +120,7 @@ class Notifier:
         await event.respond(result)
 
     # FIXME: should be list[str] instead, and add support for list of chats to resolver as well.
-    async def _resolve_chat(self, arg: str) -> ResolvedChat | None:
+    async def _resolve_chat(self, arg: str) -> ChatTopic | None:
         link = arg.strip()
         identifier = link.removeprefix("https://t.me/")
         if not identifier:
@@ -133,9 +133,9 @@ class Notifier:
         identifier = parts[0]
         topic_id = int(parts[1]) if len(parts) > 1 else None
 
-        monitored_chat = self._data.find_chat(identifier, topic_id)
-        if monitored_chat is not None:
-            return monitored_chat
+        chat_topic = self._subscriptions.find_chat(identifier, topic_id)
+        if chat_topic is not None:
+            return chat_topic
 
         return await self._chat_resolver.resolve(identifier, topic_id)
 
@@ -160,22 +160,22 @@ class Notifier:
         )
 
     async def _handle_chats(self, args: list[str]) -> str:
-        resolved_chats = await asyncio.gather(
+        chat_topics = await asyncio.gather(
             *(self._resolve_chat(arg) for arg in args)
         )
 
-        for arg, resolved in zip(args, resolved_chats):
-            if resolved is None:
+        for arg, chat_topic in zip(args, chat_topics):
+            if chat_topic is None:
                 return _fail(
                     f"Could not resolve chat '{arg}', check state and try again"
                 )
 
         return await self._handle_items(
-            items=resolved_chats,
-            remove_fn=self._data.remove_chat,
-            add_fn=self._data.add_chat,
+            items=chat_topics,
+            remove_fn=self._subscriptions.remove_chat,
+            add_fn=self._subscriptions.add_chat,
             display_fn=lambda chat: chat.link,
-            count_fn=self._data.chat_count,
+            count_fn=self._subscriptions.chat_count,
         )
 
     async def _handle_keywords(self, args: list[str]) -> str:
@@ -196,8 +196,8 @@ class Notifier:
 
         return await self._handle_items(
             items=keyword_groups,
-            remove_fn=self._data.remove_keyword_group,
-            add_fn=self._data.add_keyword_group,
+            remove_fn=self._subscriptions.remove_keyword_group,
+            add_fn=self._subscriptions.add_keyword_group,
             display_fn=lambda group: (
                 " ".join(sorted(group.positives))
                 + (
@@ -206,23 +206,23 @@ class Notifier:
                     else ""
                 )
             ),
-            count_fn=self._data.keyword_group_count,
+            count_fn=self._subscriptions.keyword_group_count,
         )
 
     async def _cmd_pause(self, _: list[str]) -> str:
-        self._data.toggle_paused()
-        status = "Paused" if self._data.paused() else "Unpaused"
+        self._subscriptions.toggle_paused()
+        status = "Paused" if self._subscriptions.paused() else "Unpaused"
         return _ok(f"{status} notifications")
 
     async def _cmd_status(self, _: list[str]) -> str:
-        keyword_list = " ".join(self._data.list_keyword_groups()) or "none"
+        keyword_list = " ".join(self._subscriptions.list_keyword_groups()) or "none"
         chat_list = (
-            " ".join([chat.get_links(" ") for chat in self._data.list_chats()])
+            " ".join([chat.get_links(" ") for chat in self._subscriptions.list_chats()])
             or "none"
         )
         return (
             f"⚙️ **Bot Status**\n\n"
-            f"Paused: `{self._data.paused()}`\n"
-            f"Keyword groups: {self._data.keyword_group_count()} (`{keyword_list}`)\n"
-            f"Chats:   {self._data.chat_count()} chat(s) ({chat_list})\n"
+            f"Paused: `{self._subscriptions.paused()}`\n"
+            f"Keyword groups: {self._subscriptions.keyword_group_count()} (`{keyword_list}`)\n"
+            f"Chats:   {self._subscriptions.chat_count()} chat(s) ({chat_list})\n"
         )

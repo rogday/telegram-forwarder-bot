@@ -21,7 +21,7 @@ def test_populate_chat_cache_skips_resolution_errors() -> None:
     bot = TelegramForwarderBot.__new__(TelegramForwarderBot)
     bot._chat_resolver = resolver
     bot._storage_manager = Mock()
-    bot._storage_manager.data.list_chats.return_value = iter(chats)
+    bot._storage_manager.subscriptions.list_chats.return_value = iter(chats)
 
     with patch("telegram_forwarder_bot.bot.logger") as logger:
         asyncio.run(bot._populate_chat_cache())
@@ -31,7 +31,7 @@ def test_populate_chat_cache_skips_resolution_errors() -> None:
         call("deleted_chat"),
         call("another_available_chat"),
     ]
-    bot._storage_manager.data.remove_chat.assert_not_called()
+    bot._storage_manager.subscriptions.remove_chat.assert_not_called()
     logger.warning.assert_called_once_with(
         "Skipping chat cache population after resolution error",
         identifier="deleted_chat",

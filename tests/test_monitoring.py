@@ -37,7 +37,7 @@ def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
     )
     client, storage = Mock(), Mock()
     storage.paused.return_value = True
-    Monitor(client, storage, Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+    Monitor(client, storage, Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
     callback = client.add_event_handler.call_args.args[0]
 
     async def exercise_modes():
@@ -55,7 +55,7 @@ def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
 def test_health_reports_silence_until_next_message():
     storage = Mock()
     storage.paused.return_value = True
-    monitor = Monitor(Mock(), storage, Mock(), MonitorStaticConfig(),
+    monitor = Monitor(Mock(), storage, Mock(), Mock(), MonitorStaticConfig(),
                       MonitorDynamicConfig(max_silence_seconds=60))
     assert monitor.health()["status"] is True
 
@@ -70,7 +70,7 @@ def test_health_reports_silence_until_next_message():
 
 
 def test_monitor_stop_before_start_and_during_ping():
-    monitor = Monitor(Mock(), Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+    monitor = Monitor(Mock(), Mock(), Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
 
     async def run():
         await monitor.stop()
@@ -85,7 +85,7 @@ def test_monitor_stop_before_start_and_during_ping():
 def test_status_log_counts_messages_since_previous_line():
     storage = Mock()
     storage.paused.return_value = True
-    monitor = Monitor(Mock(), storage, Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
+    monitor = Monitor(Mock(), storage, Mock(), Mock(), MonitorStaticConfig(), MonitorDynamicConfig())
     asyncio.run(monitor._handle_new_message(Mock()))
     asyncio.run(monitor._handle_new_message(Mock()))
 
