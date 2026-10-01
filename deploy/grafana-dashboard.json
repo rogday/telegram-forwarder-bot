@@ -2,9 +2,9 @@
   "apiVersion": "dashboard.grafana.app/v2",
   "kind": "Dashboard",
   "metadata": {
-    "name": "adv4xh6",
-    "generation": 2,
-    "creationTimestamp": "2026-07-29T22:44:24Z",
+    "name": "adv4xh6x",
+    "generation": 8,
+    "creationTimestamp": "2026-10-01T06:45:29Z",
     "labels": {},
     "annotations": {}
   },
@@ -313,7 +313,7 @@
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "always",
                     "showValues": false,
                     "spanNulls": true,
                     "stacking": {
@@ -484,7 +484,7 @@
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "always",
                     "showValues": false,
                     "spanNulls": true,
                     "stacking": {
@@ -963,7 +963,7 @@
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "always",
                     "showValues": false,
                     "spanNulls": true,
                     "stacking": {
@@ -1285,12 +1285,15 @@
                     },
                     "insertNulls": false,
                     "lineInterpolation": "linear",
+                    "lineStyle": {
+                      "fill": "solid"
+                    },
                     "lineWidth": 1,
                     "pointSize": 5,
                     "scaleDistribution": {
                       "type": "linear"
                     },
-                    "showPoints": "auto",
+                    "showPoints": "always",
                     "showValues": false,
                     "spanNulls": true,
                     "stacking": {
