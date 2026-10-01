@@ -97,8 +97,3 @@ class ConfigWatcher:
             self._handler.close()
         self._observer.stop()
         self._observer.join()
-
-    def subscribe(self, callback: Callable) -> None:
-        self.stop()
-        self._callbacks.append(callback)
-        self.start()
