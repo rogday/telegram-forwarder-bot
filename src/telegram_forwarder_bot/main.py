@@ -1,10 +1,9 @@
 import asyncio
 import signal
 
-from .app_logging import get_logger
-from .bot import TelegramForwarderBot
+from loguru import logger
 
-logger = get_logger(__name__)
+from .bot import TelegramForwarderBot
 
 
 async def main() -> None:

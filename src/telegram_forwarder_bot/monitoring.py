@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from loguru import logger
 from telethon import TelegramClient, events, utils
 from telethon.tl.custom.message import Message as TelethonMessage
 from telethon.tl.functions import PingRequest
@@ -17,7 +18,6 @@ from telethon.tl.types import (
     TypeMessageReplyHeader,
 )
 
-from .app_logging import get_logger
 from .config import MonitorDynamicConfig, MonitorStaticConfig
 from .metrics import (
     MetricRecord,
@@ -27,8 +27,6 @@ from .metrics import (
     traceable,
 )
 from .storage import ChatSubscription, ChatTopic, Deduplicator, Subscriptions
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -131,7 +129,7 @@ class Monitor(RuntimeInstrumentationBase):
         self._static_config = static_config
         self._dynamic_config = dynamic_config
 
-        self._force_sync_task: asyncio.Task | None = None
+        self._ping_task: asyncio.Task | None = None
         self._status_task: asyncio.Task | None = None
         self._client: TelegramClient = client
         self._subscriptions: Subscriptions = subscriptions
@@ -143,11 +141,11 @@ class Monitor(RuntimeInstrumentationBase):
         self._messages_handled: int = 0
 
     def start(self) -> None:
-        self._force_sync_task = asyncio.create_task(self._ping_loop())
+        self._ping_task = asyncio.create_task(self._ping_loop())
         self._status_task = asyncio.create_task(self._status_loop())
 
     async def stop(self) -> None:
-        for task in (self._force_sync_task, self._status_task):
+        for task in (self._ping_task, self._status_task):
             if task is not None:
                 task.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
@@ -166,6 +164,8 @@ class Monitor(RuntimeInstrumentationBase):
             seconds_since_last_message=seconds_since_last_message,
         )
 
+    # Without a regular request, Telegram delivers new messages late, sometimes
+    # by up to ~30 s
     async def _ping_loop(self):
         while True:
             try:

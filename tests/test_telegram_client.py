@@ -13,7 +13,7 @@ from telegram_forwarder_bot.telegram_client import ResilientTelegramClient
 def create_client(attempts: int) -> ResilientTelegramClient:
     client = ResilientTelegramClient.__new__(ResilientTelegramClient)
     client._client_name = "user"
-    client._client_config = ClientDynamicConfig(request_retry=RetryDynamicConfig(
+    client._dynamic_config = ClientDynamicConfig(request_retry=RetryDynamicConfig(
         timeout_seconds=0.05, attempts=attempts,
         min_backoff_seconds=0.01, max_backoff_seconds=0.01))
     return client

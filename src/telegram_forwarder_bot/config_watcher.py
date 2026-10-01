@@ -4,14 +4,12 @@ from functools import partial
 from pathlib import Path
 from threading import Lock, Timer
 
+from loguru import logger
 from watchdog.events import FileSystemEvent, FileSystemEventHandler, FileSystemMovedEvent
 from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 
-from .app_logging import get_logger
 from .config import DYNAMIC_CONFIG_NAME, ConfigWatcherStaticConfig, DynamicConfig
-
-logger = get_logger(__name__)
 
 
 def _reload_and_notify(callbacks: list[Callable]) -> DynamicConfig:

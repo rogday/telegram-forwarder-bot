@@ -1,9 +1,10 @@
 import asyncio
 
+from loguru import logger
 from telethon import events
 
 from .admin_commands import AdminCommands
-from .app_logging import LogManager, get_logger
+from .app_logging import LogManager
 from .config import (
     DynamicConfig,
     StaticConfig,
@@ -19,8 +20,6 @@ from .monitoring import ChatResolver, Monitor
 from .notification import Notifier
 from .storage import StorageManager
 from .telegram_client import ResilientTelegramClient
-
-logger = get_logger(__name__)
 
 
 class TelegramForwarderBot:

@@ -106,6 +106,3 @@ class LogManager:
         await _logger.complete()
         _logger.remove()
 
-
-def get_logger(_name: str | None = None):
-    return _logger

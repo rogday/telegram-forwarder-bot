@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
+from loguru import logger
 from tenacity import (
     AsyncRetrying,
     RetryCallState,
@@ -10,10 +11,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from .app_logging import get_logger
 from .config import RetryDynamicConfig
-
-logger = get_logger(__name__)
 
 T = TypeVar("T")
 

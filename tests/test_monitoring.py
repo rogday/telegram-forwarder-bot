@@ -92,7 +92,7 @@ def test_monitor_stop_before_start_and_during_ping():
         monitor._ping_loop = lambda: asyncio.sleep(60)
         monitor.start()
         await monitor.stop()
-        assert monitor._force_sync_task.cancelled()
+        assert monitor._ping_task.cancelled()
 
     asyncio.run(run())
 

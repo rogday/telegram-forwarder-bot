@@ -7,7 +7,7 @@ A multi-instance Telegram bot that monitors specified chat groups and topics for
 ## Features
 
 - **Real-time message monitoring** - Listens to messages from multiple Telegram chat groups and discussion forum topics
-- **Keyword matching** - Supports AND-grouped keywords with Aho-Corasik automaton-based pattern matching (via `pyahocorasick`)
+- **Keyword matching** - Supports AND-grouped keywords with Aho–Corasick automaton-based pattern matching (via `pyahocorasick`)
 - **Multi-instance support** - Run multiple independent bot instances, each with its own configuration
 - **Flexible subscription model** - Subscribe/unsubscribe to groups via URL links or explicit commands
 - **Pause/resume notifications** - Temporarily halt notifications without losing subscriptions
@@ -27,18 +27,21 @@ graph TD
     end
 
     UC -->|Monitors messages| M[Monitor]
+    M -->|Checks chats and keywords| S[Subscriptions]
+    S -->|Pattern matching| KM[Aho–Corasick Keyword Matcher]
+    M -->|Skips reposts| D[Deduplicator]
     M -->|Keyword match found| MQ[Match Queue]
-    M -->|Checks subscriptions| SD[Storage Data]
-    SD -->|Pattern matching| KM[Aho-Corasik Automaton]
-    SD -->|Group subscriptions| GM[Group Manager]
 
     MQ -->|Dispatches| N[Notifier]
     N -->|Sends notification| BC
     BC -->|Delivers to admin| ADM[Admin User]
 
-    BC <--->|Handles commands| N
-    
-    N -.->|Metrics| ID3[InfluxDB 3]
+    ADM -->|Sends commands| BC
+    BC -->|Handles commands| AC[Admin Commands]
+    AC -->|Changes| S
+
+    M -.->|Metrics| ID3[InfluxDB 3]
+    N -.->|Metrics| ID3
     ID3 -.->|Query| G[Grafana]
 ```
 
@@ -251,7 +254,7 @@ The bot interprets each space-separated token as an independent keyword group:
 
 Keywords are organized into **AND-groups**. A message matches a group only if **all** keywords in that group appear somewhere in the message text. Multiple groups are evaluated with **OR** logic - matching any single group triggers a notification.
 
-The bot uses the Aho-Corasik algorithm (via `pyahocorasick`) for efficient multi-pattern string matching across all keyword groups simultaneously.
+The bot uses the Aho–Corasick algorithm (via `pyahocorasick`) for efficient multi-pattern string matching across all keyword groups simultaneously.
 
 Examples:
 
@@ -291,10 +294,10 @@ telegram-forwarder-bot/
 └── src/telegram_forwarder_bot/
     ├── __main__.py           # CLI entry point with Click
     ├── main.py               # Async application bootstrap
-    ├── bot.py                # Wires the clients, monitor and notifier together
+    ├── bot.py                # Wires the clients and message handlers together
     ├── config.py             # YAML configuration models and loaders
     ├── config_watcher.py     # Reloads .dynamic.yml when it changes
-    ├── storage.py            # Persistent storage and keyword management
+    ├── storage.py            # Subscriptions, keyword matching, deduplication and the storage file
     ├── monitoring.py         # Message monitor and chat entity resolver
     ├── admin_commands.py     # Admin commands, chat links and keyword groups
     ├── notification.py       # Sends matches to the admin

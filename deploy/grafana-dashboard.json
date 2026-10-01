@@ -1004,7 +1004,7 @@
                         "editorMode": "code",
                         "format": "time_series",
                         "rawQuery": true,
-                        "rawSql": "SELECT\r\n  \"collections_since_last_gc\",\r\n  \"instance_id\",\r\n  \"time\",\r\n  \"gc\"\r\nFROM\r\n  \"gc_stats\"\r\nWHERE\r\n  \"time\" >= $__timeFrom - ($__timeTo - $__timeFrom)\r\n  AND \"time\" <= $__timeTo\r\nORDER BY\r\n  \"time\" ASC",
+                        "rawSql": "SELECT\n  \"collections\",\n  \"instance_id\",\n  \"time\",\n  \"gc\"\nFROM (\n  SELECT\n    \"collections_total\" - LAG(\"collections_total\") OVER (\n      PARTITION BY \"instance_id\", \"gc\" ORDER BY \"time\") AS \"collections\",\n    \"instance_id\",\n    \"time\",\n    \"gc\"\n  FROM\n    \"gc_stats\"\n  WHERE\n    \"time\" >= $__timeFrom - ($__timeTo - $__timeFrom)\n    AND \"time\" <= $__timeTo\n)\n-- A restart resets the counters, which would show as a negative step\nWHERE\n  \"collections\" >= 0\nORDER BY\n  \"time\" ASC",
                         "sql": {
                           "columns": [
                             {

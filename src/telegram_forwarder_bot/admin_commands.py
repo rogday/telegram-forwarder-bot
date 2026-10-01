@@ -2,13 +2,11 @@ import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from typing import TypeVar
 
+from loguru import logger
 from telethon import events
 
-from .app_logging import get_logger
 from .monitoring import ChatResolver
 from .storage import ChatTopic, KeywordGroup, StorageManager
-
-logger = get_logger(__name__)
 
 T = TypeVar("T")
 

@@ -2,14 +2,12 @@ import asyncio
 import time
 from zoneinfo import ZoneInfo
 
+from loguru import logger
 from telethon import TelegramClient
 
-from .app_logging import get_logger
 from .config import NotifierDynamicConfig
 from .metrics import MetricRecord, get_metric_recorder
 from .monitoring import MatchEvent
-
-logger = get_logger(__name__)
 
 
 def _format_match(event: MatchEvent, timezone: ZoneInfo) -> str:

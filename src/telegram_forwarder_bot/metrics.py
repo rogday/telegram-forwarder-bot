@@ -19,8 +19,8 @@ from influxdb_client_3 import (
     WritePrecision,
     write_client_options,
 )
+from loguru import logger
 
-from .app_logging import get_logger
 from .config import (
     MetricRecorderDynamicConfig,
     MetricRecorderStaticConfig,
@@ -28,8 +28,6 @@ from .config import (
     RuntimeInstrumentationManagerStaticConfig,
     RuntimeInstrumentationMode,
 )
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -116,10 +114,13 @@ class MetricRecorder(NoopMetricRecorder):
                     MetricRecord(
                         table_name="gc_stats",
                         fields=dict(
-                            allocated_since_last_gc=g_counts[i],
-                            collections_since_last_gc=g_stats[i]["collections"],
-                            collected_since_last_gc=g_stats[i]["collected"],
-                            uncollectable_since_last_gc=g_stats[i]["uncollectable"],
+                            # gc.get_count(): net allocations for generation 0,
+                            # collections of the younger generation for the others
+                            count=g_counts[i],
+                            # gc.get_stats() is cumulative since start
+                            collections_total=g_stats[i]["collections"],
+                            collected_total=g_stats[i]["collected"],
+                            uncollectable_total=g_stats[i]["uncollectable"],
                         ),
                         tags=dict(gc=i),
                     )
@@ -266,7 +267,7 @@ class _InstrumentedMethod:
     stack_dump_wrapper: Callable
 
 
-class WatchdogAlarmHandler:
+class StackSampler:
     def __init__(self, orig_func: Callable, frame_count_limit: int):
         self._orig_func = orig_func
         self._snapshots: list[list[tuple[str, str, int]]] = []
@@ -360,7 +361,7 @@ class RuntimeInstrumentationManager:
     @contextlib.contextmanager
     def _stack_dump_session(self, orig_func: Callable):
         config = self._dynamic_config
-        handler = WatchdogAlarmHandler(
+        handler = StackSampler(
             orig_func, config.stack_dump.frame_count_limit)
         signal.signal(signal.SIGALRM, handler.handle_alarm)
         signal.setitimer(signal.ITIMER_REAL, config.stack_dump.threshold_nanos * 1e-9,
