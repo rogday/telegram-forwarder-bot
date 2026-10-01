@@ -2,6 +2,8 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, call, patch
 
+import pytest
+
 from telegram_forwarder_bot.bot import TelegramForwarderBot
 
 
@@ -81,15 +83,13 @@ def test_runtime_error_cancels_other_running_tasks():
 
     bot._user_client = Mock(start=AsyncMock(), run_until_disconnected=wait_for_disconnect)
     bot._bot_client = Mock(start=AsyncMock(), run_until_disconnected=wait_for_disconnect)
-    bot._notifier = Mock(listen=fail)
+    bot._notifier = Mock(run=fail)
 
     async def run():
-        try:
+        with pytest.raises(ExceptionGroup) as error:
             await bot.start()
-        except RuntimeError:
-            assert len(cancelled) == 2
-        else:
-            raise AssertionError('Runtime error was swallowed')
+        assert error.group_contains(RuntimeError, match='listener failed')
+        assert len(cancelled) == 2
 
     with patch('telegram_forwarder_bot.bot.get_metric_recorder', return_value=recorder):
         asyncio.run(run())
@@ -112,6 +112,22 @@ def test_metrics_stop_immediately_after_start():
     asyncio.run(run())
     client.close.assert_called_once()
     client.flush.assert_not_called()
+
+
+def test_metrics_stop_sends_queued_records_before_closing():
+    from telegram_forwarder_bot.config import MetricRecorderDynamicConfig, MetricRecorderStaticConfig
+    from telegram_forwarder_bot.metrics import MetricRecord, MetricRecorder
+
+    client = Mock()
+    recorder = MetricRecorder(client, MetricRecorderStaticConfig(), MetricRecorderDynamicConfig())
+
+    async def run():
+        await recorder.start()
+        recorder.record(MetricRecord(table_name="health", tags={}, fields=dict(status=True)))
+        await recorder.stop()
+
+    asyncio.run(run())
+    assert [name for name, _, _ in client.method_calls] == ["write", "close"]
 
 
 def test_heartbeat_reports_health_check():

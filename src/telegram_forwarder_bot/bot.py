@@ -135,25 +135,12 @@ class TelegramForwarderBot:
 
         logger.info("Clients and monitor started")
 
-        try:
-            await self._populate_chat_cache()
+        await self._populate_chat_cache()
 
-            tasks = [asyncio.ensure_future(coroutine) for coroutine in (
-                self._bot_client.run_until_disconnected(),  # type: ignore
-                self._user_client.run_until_disconnected(),  # type: ignore
-                self._notifier.listen(),
-            )]
-            try:
-                await asyncio.gather(*tasks)
-            finally:
-                for task in tasks:
-                    task.cancel()
-                await asyncio.gather(*tasks, return_exceptions=True)
-        except asyncio.CancelledError:
-            logger.info(
-                "Tasks cancelled, initiating shutdown sequence.")
-        except KeyboardInterrupt:
-            logger.info("Received interrupt signal.")
+        async with asyncio.TaskGroup() as tasks:
+            tasks.create_task(self._bot_client.run_until_disconnected())  # type: ignore
+            tasks.create_task(self._user_client.run_until_disconnected())  # type: ignore
+            tasks.create_task(self._notifier.run())
 
     async def stop(self) -> None:
         logger.info("Beginning teardown.")

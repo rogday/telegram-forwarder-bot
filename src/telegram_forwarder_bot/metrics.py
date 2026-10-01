@@ -100,8 +100,6 @@ class MetricRecorder(NoopMetricRecorder):
         while self._enabled:
             try:
                 await func()
-            except asyncio.CancelledError:
-                break
             except Exception:
                 logger.exception(f"Error in {name} loop")
                 raise
@@ -167,6 +165,8 @@ class MetricRecorder(NoopMetricRecorder):
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
+        # Hands the last interval's records to the client, which sends them on close
+        await self._flush()
         loop = asyncio.get_running_loop()
         await asyncio.wait_for(
             loop.run_in_executor(None, self._influxdb_client.close),
@@ -206,11 +206,8 @@ class MetricRecorder(NoopMetricRecorder):
 
     async def _worker(self):
         while self._enabled:
-            try:
-                await asyncio.sleep(self._dynamic_config.metric_interval_seconds)
-                await self._flush()
-            except asyncio.CancelledError:
-                break
+            await asyncio.sleep(self._dynamic_config.metric_interval_seconds)
+            await self._flush()
 
 
 def _make_metric_recorder(static_config: MetricRecorderStaticConfig,

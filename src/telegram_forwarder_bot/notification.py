@@ -1,8 +1,5 @@
-from __future__ import annotations
-
 import asyncio
 import time
-from types import CoroutineType
 from zoneinfo import ZoneInfo
 
 from telethon import TelegramClient
@@ -49,32 +46,26 @@ class Notifier:
     def on_config_update(self, dynamic_config: NotifierDynamicConfig) -> None:
         self._dynamic_config = dynamic_config
 
-    def listen(self) -> CoroutineType[None, None, None]:
-        return self._dispatch_matches()
-
-    async def _dispatch_matches(self) -> None:
-        try:
-            while True:
-                event = await self._match_queue.get()
-                status = "failed"
-                try:
-                    text = _format_match(event, self._dynamic_config.timezone)
-                    await self._client.send_message(
-                        entity=self._admin_id,
-                        message=text,
-                        parse_mode="md",
-                    )
-                    status = "sent"
-                except Exception:
-                    logger.exception("Admin notification message send failed")
-                finally:
-                    self._match_queue.task_done()
-                # From receiving the message to Telegram acknowledging the notification,
-                # or to the failure
-                get_metric_recorder().record(MetricRecord(
-                    table_name="delivery_stats",
-                    tags=dict(status=status),
-                    fields=dict(latency_ns=time.time_ns() - event.received_at_ns),
-                ))
-        except asyncio.CancelledError:
-            pass
+    async def run(self) -> None:
+        while True:
+            event = await self._match_queue.get()
+            status = "failed"
+            try:
+                text = _format_match(event, self._dynamic_config.timezone)
+                await self._client.send_message(
+                    entity=self._admin_id,
+                    message=text,
+                    parse_mode="md",
+                )
+                status = "sent"
+            except Exception:
+                logger.exception("Admin notification message send failed")
+            finally:
+                self._match_queue.task_done()
+            # From receiving the message to Telegram acknowledging the notification,
+            # or to the failure
+            get_metric_recorder().record(MetricRecord(
+                table_name="delivery_stats",
+                tags=dict(status=status),
+                fields=dict(latency_ns=time.time_ns() - event.received_at_ns),
+            ))

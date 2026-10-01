@@ -15,7 +15,7 @@ def deliver(send_message: AsyncMock) -> list:
     async def run():
         queue: asyncio.Queue[MatchEvent] = asyncio.Queue()
         notifier = Notifier(Mock(send_message=send_message), queue, 42, NotifierDynamicConfig())
-        task = asyncio.create_task(notifier.listen())
+        task = asyncio.create_task(notifier.run())
         queue.put_nowait(MatchEvent(
             source_title="Chat", chat=ChatTopic(id=1, topic_id=None, username="chat"),
             message_id=7, date=None, matched_keywords={"python"},
