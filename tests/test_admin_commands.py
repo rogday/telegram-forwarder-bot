@@ -24,10 +24,15 @@ def commands(storage, resolve_chat) -> AdminCommands:
     return AdminCommands(storage, Mock(resolve=resolve_chat), ADMIN_ID)
 
 
-def send(commands: AdminCommands, text: str, sender_id: int = ADMIN_ID) -> str | None:
+def send_all(commands: AdminCommands, text: str, sender_id: int = ADMIN_ID) -> list[str]:
     event = Mock(sender_id=sender_id, text=text, respond=AsyncMock())
     asyncio.run(commands.handle(event))
-    return event.respond.await_args.args[0] if event.respond.await_args else None
+    return [c.args[0] for c in event.respond.await_args_list]
+
+
+def send(commands: AdminCommands, text: str, sender_id: int = ADMIN_ID) -> str | None:
+    replies = send_all(commands, text, sender_id)
+    return replies[-1] if replies else None
 
 
 def test_ignores_messages_from_others(commands, storage) -> None:
@@ -93,3 +98,49 @@ def test_keyword_group_with_exclusion_can_be_added_and_removed(commands, storage
 
     assert send(commands, "python_!course").startswith("✅")
     assert storage.subscriptions.keyword_group_count() == 0
+
+
+def test_replies_use_the_syntax_the_admin_types(commands):
+    assert send(commands, "python_!Course django").endswith(
+        "removed: ; added: python_!course, django; total: 2 item(s)")
+    # Pasting a reply's group back removes it
+    assert "removed: python_!course;" in send(commands, "python_!course")
+
+
+def test_status_lists_sorted_groups_and_chats(commands, storage):
+    storage.subscriptions.add_chat(ChatTopic(username="zeta", id=2, topic_id=5))
+    storage.subscriptions.add_chat(ChatTopic(username="zeta", id=2, topic_id=None))
+    storage.subscriptions.add_chat(ChatTopic(username="Alpha", id=1, topic_id=None))
+    send(commands, "web_rust python_!course")
+
+    assert send(commands, "/status").splitlines()[3:] == [
+        "Keyword groups: 2",
+        "`python_!course`",
+        "`rust_web`",
+        "Chats: 2",
+        "https://t.me/Alpha",
+        "https://t.me/zeta",
+        "https://t.me/zeta/5",
+    ]
+
+
+def test_long_status_is_split_between_lines(commands, storage):
+    groups = [f"keyword{i:04}_{'x' * 40}" for i in range(300)]
+    send(commands, " ".join(groups))
+
+    replies = send_all(commands, "/status")
+
+    assert len(replies) > 1
+    assert all(len(reply) <= 4096 for reply in replies)
+    lines = "".join(replies).splitlines()
+    assert lines[4:304] == [f"`{group}`" for group in sorted(groups)]
+
+
+def test_only_commands_that_change_state_save_storage(commands, storage, tmp_path):
+    database_path = tmp_path / "storage.db"
+
+    send(commands, "/status")
+    assert not database_path.exists()
+
+    send(commands, "/pause")
+    assert database_path.exists()

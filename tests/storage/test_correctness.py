@@ -197,7 +197,7 @@ class TestKeywordGroupManagement:
         data.add_keyword_group(KeywordGroup.from_lists(["foo", "bar"], []))
         assert data.keyword_group_count() == 2
 
-        groups = list(data.list_keyword_groups())
+        groups = [str(group) for group in data.keyword_groups()]
         assert len(groups) == 2
         assert "hello_world" in groups
         assert "bar_foo" in groups

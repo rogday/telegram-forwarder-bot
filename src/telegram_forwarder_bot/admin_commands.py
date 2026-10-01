@@ -1,5 +1,6 @@
 import asyncio
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
+from typing import TypeVar
 
 from telethon import events
 
@@ -9,6 +10,10 @@ from .storage import ChatTopic, KeywordGroup, StorageManager
 
 logger = get_logger(__name__)
 
+T = TypeVar("T")
+
+TELEGRAM_MAX_MESSAGE_LENGTH = 4096
+
 
 def _ok(message: str) -> str:
     return f"✅ {message}"
@@ -16,6 +21,29 @@ def _ok(message: str) -> str:
 
 def _fail(message: str) -> str:
     return f"❌ {message}"
+
+
+def _toggle(items: Iterable[T], remove: Callable[[T], bool], add: Callable[[T], None],
+            count: Callable[[], int]) -> str:
+    added: list[str] = []
+    removed: list[str] = []
+    for item in items:
+        if remove(item):
+            removed.append(str(item))
+        else:
+            add(item)
+            added.append(str(item))
+    return _ok(f"removed: {', '.join(removed)}; added: {', '.join(added)}; total: {count()} item(s)")
+
+
+def _split_message(text: str) -> list[str]:
+    """Splits text into messages Telegram accepts, at line boundaries."""
+    messages = [""]
+    for line in text.splitlines(keepends=True):
+        if messages[-1] and len(messages[-1]) + len(line) > TELEGRAM_MAX_MESSAGE_LENGTH:
+            messages.append("")
+        messages[-1] += line
+    return messages
 
 
 class AdminCommands:
@@ -58,12 +86,12 @@ class AdminCommands:
 
         try:
             result = await handler(args)
-            self._storage.flush()
         except Exception as e:
             logger.exception("Bot command execution failed", cmd=cmd)
             return await event.respond(f"⚠️ Could not execute '{cmd}': {e}")
 
-        await event.respond(result)
+        for message in _split_message(result):
+            await event.respond(message)
 
     # FIXME: should be list[str] instead, and add support for list of chats to resolver as well.
     async def _resolve_chat(self, arg: str) -> ChatTopic | None:
@@ -85,26 +113,6 @@ class AdminCommands:
 
         return await self._chat_resolver.resolve(identifier, topic_id)
 
-    async def _handle_items(
-        self, items, remove_fn, add_fn, display_fn, count_fn
-    ) -> str:
-        added: list[str] = []
-        removed: list[str] = []
-
-        for item in items:
-            display = display_fn(item)
-            if not remove_fn(item):
-                add_fn(item)
-                added.append(display)
-            else:
-                removed.append(display)
-
-        return _ok(
-            f"removed: {', '.join(removed)};"
-            f"added: {', '.join(added)};"
-            f"total: {count_fn()} item(s)"
-        )
-
     async def _handle_chats(self, args: list[str]) -> str:
         chat_topics = await asyncio.gather(
             *(self._resolve_chat(arg) for arg in args)
@@ -116,13 +124,10 @@ class AdminCommands:
                     f"Could not resolve chat '{arg}', check state and try again"
                 )
 
-        return await self._handle_items(
-            items=chat_topics,
-            remove_fn=self._subscriptions.remove_chat,
-            add_fn=self._subscriptions.add_chat,
-            display_fn=lambda chat: chat.link,
-            count_fn=self._subscriptions.chat_count,
-        )
+        result = _toggle(chat_topics, self._subscriptions.remove_chat,
+                         self._subscriptions.add_chat, self._subscriptions.chat_count)
+        self._storage.flush()
+        return result
 
     async def _handle_keywords(self, args: list[str]) -> str:
         # Each token is a group of keywords separated by "_"
@@ -140,35 +145,28 @@ class AdminCommands:
         if not keyword_groups:
             return _fail("No valid keywords found")
 
-        return await self._handle_items(
-            items=keyword_groups,
-            remove_fn=self._subscriptions.remove_keyword_group,
-            add_fn=self._subscriptions.add_keyword_group,
-            display_fn=lambda group: (
-                " ".join(sorted(group.positives))
-                + (
-                    " " + " ".join("!" + ng for ng in sorted(group.negatives))
-                    if group.negatives
-                    else ""
-                )
-            ),
-            count_fn=self._subscriptions.keyword_group_count,
-        )
+        result = _toggle(keyword_groups, self._subscriptions.remove_keyword_group,
+                         self._subscriptions.add_keyword_group,
+                         self._subscriptions.keyword_group_count)
+        self._storage.flush()
+        return result
 
     async def _cmd_pause(self, _: list[str]) -> str:
         self._subscriptions.toggle_paused()
+        self._storage.flush()
         status = "Paused" if self._subscriptions.paused() else "Unpaused"
         return _ok(f"{status} notifications")
 
     async def _cmd_status(self, _: list[str]) -> str:
-        keyword_list = " ".join(self._subscriptions.list_keyword_groups()) or "none"
-        chat_list = (
-            " ".join([chat.get_links(" ") for chat in self._subscriptions.list_chats()])
-            or "none"
-        )
-        return (
-            f"⚙️ **Bot Status**\n\n"
-            f"Paused: `{self._subscriptions.paused()}`\n"
-            f"Keyword groups: {self._subscriptions.keyword_group_count()} (`{keyword_list}`)\n"
-            f"Chats:   {self._subscriptions.chat_count()} chat(s) ({chat_list})\n"
-        )
+        # One item per line, so a long status splits between items
+        keyword_groups = sorted(str(group) for group in self._subscriptions.keyword_groups())
+        chats = sorted(self._subscriptions.list_chats(), key=lambda chat: chat.username.casefold())
+        return "\n".join([
+            "⚙️ **Bot Status**",
+            "",
+            f"Paused: `{self._subscriptions.paused()}`",
+            f"Keyword groups: {len(keyword_groups)}",
+            *(f"`{group}`" for group in keyword_groups),
+            f"Chats: {len(chats)}",
+            *(link for chat in chats for link in chat.links()),
+        ])

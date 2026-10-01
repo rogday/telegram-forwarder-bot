@@ -30,6 +30,10 @@ class ChatTopic:
     def message_link(self, message_id: int) -> str:
         return f"{self.link}/{message_id}"
 
+    # The link the admin sends, so it can be pasted back to toggle the chat
+    def __str__(self) -> str:
+        return self.link
+
 
 @dataclass
 class ChatSubscription:
@@ -38,10 +42,10 @@ class ChatSubscription:
     # None means the whole chat
     topic_ids: set[int | None]
 
-    def get_links(self, delimiter: str = ", ") -> str:
-        return delimiter.join(
-            map(lambda x: _build_link(self.username, x), self.topic_ids)
-        )
+    def links(self) -> list[str]:
+        # None goes first; sorted() can't compare it with int
+        topic_ids = sorted(self.topic_ids, key=lambda topic_id: (topic_id is not None, topic_id or 0))
+        return [_build_link(self.username, topic_id) for topic_id in topic_ids]
 
 
 @dataclass(frozen=True)
@@ -54,6 +58,10 @@ class KeywordGroup:
         positives_set = frozenset(p.lower() for p in positives)
         negatives_set = frozenset(n.lower() for n in negatives)
         return cls(positives=positives_set, negatives=negatives_set)
+
+    # The syntax the admin types, so it can be pasted back to toggle the group
+    def __str__(self) -> str:
+        return "_".join([*sorted(self.positives), *("!" + n for n in sorted(self.negatives))])
 
 
 class StorageFile(BaseModel):
@@ -169,14 +177,6 @@ class Subscriptions:
 
     def keyword_groups(self) -> Iterator[KeywordGroup]:
         yield from self._keyword_groups
-
-    def list_keyword_groups(self) -> Iterator[str]:
-        for group in self._keyword_groups:
-            parts = "_".join(sorted(group.positives))
-            if group.negatives:
-                parts += "_" + \
-                    "_".join("!" + n for n in sorted(group.negatives))
-            yield parts
 
     def keyword_group_count(self) -> int:
         return len(self._keyword_groups)

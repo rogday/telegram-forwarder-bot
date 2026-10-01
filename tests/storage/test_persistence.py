@@ -24,7 +24,7 @@ class TestStorageManager:
         restored = storage_manager_class(db_path)
 
         assert restored.subscriptions.paused()
-        assert list(restored.subscriptions.list_keyword_groups()) == ["hello_world_!bye"]
+        assert [str(group) for group in restored.subscriptions.keyword_groups()] == ["hello_world_!bye"]
         assert restored.subscriptions.find_chat("TEST", 789) == ChatTopic(
             username="test", id=123456, topic_id=789)
         assert restored.subscriptions.is_topic_monitored(
@@ -48,7 +48,7 @@ class TestStorageManager:
 
         subscriptions = manager.subscriptions
         assert subscriptions.paused()
-        assert sorted(subscriptions.list_keyword_groups()) == [
+        assert sorted(str(group) for group in subscriptions.keyword_groups()) == [
             "machine-learning_python_!course", "работа"]
         assert subscriptions.find_chat("somegroup", 5) == ChatTopic(
             username="SomeGroup", id=1234567890, topic_id=5)
