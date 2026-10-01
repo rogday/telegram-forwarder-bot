@@ -114,8 +114,6 @@ class Monitor(RuntimeInstrumentationBase):
         self._chat_resolver: ChatResolver = chat_resolver
         self._last_message_at: float = time.monotonic()
         self._messages_handled: int = 0
-        self._client.add_event_handler(
-            self._handle_new_message, events.NewMessage())
 
     def start(self) -> None:
         self._force_sync_task = asyncio.create_task(self._ping_loop())
@@ -236,7 +234,7 @@ class Monitor(RuntimeInstrumentationBase):
                 max_size=self._match_queue.maxsize,
             )
 
-    async def _handle_new_message(self, event: events.NewMessage.Event) -> None:
+    async def handle_new_message(self, event: events.NewMessage.Event) -> None:
         self._last_message_at = time.monotonic()
         self._messages_handled += 1
         try:

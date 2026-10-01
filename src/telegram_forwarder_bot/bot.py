@@ -1,5 +1,8 @@
 import asyncio
 
+from telethon import events
+
+from .admin_commands import AdminCommands
 from .app_logging import LogManager, get_logger
 from .config import (
     DynamicConfig,
@@ -71,15 +74,22 @@ class TelegramForwarderBot:
             self._dynamic_config.monitor)
         get_metric_recorder().set_health_check(self._monitor.health)
 
-        match_queue = self._monitor.get_match_queue()
+        self._admin_commands: AdminCommands = AdminCommands(
+            self._storage_manager,
+            self._chat_resolver,
+            self._static_config.client.admin_id)
 
         self._notifier: Notifier = Notifier(
             self._bot_client,
-            self._storage_manager,
-            match_queue,
+            self._monitor.get_match_queue(),
             self._static_config.client.admin_id,
-            self._chat_resolver,
             self._dynamic_config.notifier)
+
+        # Registered before the clients connect, so no update arrives unhandled
+        self._user_client.add_event_handler(
+            self._monitor.handle_new_message, events.NewMessage())
+        self._bot_client.add_event_handler(
+            self._admin_commands.handle, events.NewMessage())
 
     def on_config_update(self, config: DynamicConfig) -> None:
         get_metric_recorder().on_config_update(config.metric_recorder)

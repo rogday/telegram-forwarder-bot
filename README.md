@@ -296,7 +296,8 @@ telegram-forwarder-bot/
     ├── config_watcher.py     # Reloads .dynamic.yml when it changes
     ├── storage.py            # Persistent storage and keyword management
     ├── monitoring.py         # Message monitor and chat entity resolver
-    ├── notification.py       # Command handler and notification dispatcher
+    ├── admin_commands.py     # Admin commands, chat links and keyword groups
+    ├── notification.py       # Sends matches to the admin
     ├── metrics.py            # InfluxDB 3 performance metrics
     ├── retry.py              # Timeouts and exponential retries
     ├── telegram_client.py    # Telethon client with request timeouts
