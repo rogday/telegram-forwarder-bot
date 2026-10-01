@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from telethon import utils
-from telethon.tl.types import MessageReplyHeader, MessageReplyStoryHeader, PeerChannel
+from telethon.tl.types import Channel, MessageReplyHeader, MessageReplyStoryHeader, PeerChannel
 
 from telegram_forwarder_bot.config import (
     MonitorDynamicConfig,
@@ -16,8 +16,14 @@ from telegram_forwarder_bot.config import (
     StorageManagerDynamicConfig,
 )
 from telegram_forwarder_bot.metrics import RuntimeInstrumentationManager
-from telegram_forwarder_bot.monitoring import ChatInfo, Monitor
-from telegram_forwarder_bot.storage import ChatTopic, Deduplicator, KeywordGroup, Subscriptions
+from telegram_forwarder_bot.monitoring import ChatInfo, ChatResolver, Monitor
+from telegram_forwarder_bot.storage import (
+    ChatSubscription,
+    ChatTopic,
+    Deduplicator,
+    KeywordGroup,
+    Subscriptions,
+)
 
 
 def test_registered_handler_uses_current_instrumentation(monkeypatch, tmp_path):
@@ -147,3 +153,38 @@ def test_message_topic(forum, reply_header, topic_id):
     chat = ChatInfo(id=123, forum=forum, title="Chat", username="chat")
 
     assert monitor._get_chat_topic(chat, reply_header).topic_id == topic_id
+
+
+def channel(chat_id: int, username: str) -> Mock:
+    return Mock(spec=Channel, id=chat_id, username=username, forum=False, title=username.title())
+
+
+def subscription(chat_id: int, username: str) -> ChatSubscription:
+    return ChatSubscription(id=chat_id, username=username, topic_ids={None})
+
+
+def test_warm_cache_resolves_usernames_only_for_chats_the_session_does_not_know():
+    known_ids = {1: channel(1, "one")}
+    usernames = {"two": channel(2, "two")}
+
+    async def get_entity(identifier):
+        if isinstance(identifier, PeerChannel):
+            if identifier.channel_id not in known_ids:
+                raise ValueError("Could not find the input entity")
+            return known_ids[identifier.channel_id]
+        if identifier in usernames:
+            return usernames[identifier]
+        raise ConnectionError("chat no longer exists")
+
+    client = Mock(get_entity=AsyncMock(side_effect=get_entity))
+    resolver = ChatResolver(client)
+
+    with patch("telegram_forwarder_bot.monitoring.logger") as logger:
+        asyncio.run(resolver.warm_cache(
+            [subscription(1, "one"), subscription(2, "two"), subscription(3, "three")]))
+
+    resolved_usernames = [c.args[0] for c in client.get_entity.await_args_list
+                          if isinstance(c.args[0], str)]
+    assert resolved_usernames == ["two", "three"]
+    assert set(resolver._cache) == {1, "one", 2, "two"}
+    logger.exception.assert_called_once()

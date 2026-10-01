@@ -102,24 +102,6 @@ class TelegramForwarderBot:
         self._runtime_instrumentation_manager.on_config_update(
             config.runtime_instrumentation_manager)
 
-    async def _populate_chat_cache(self) -> None:
-        async def resolve_chat(username: str) -> None:
-            try:
-                await self._chat_resolver.resolve_cached(username)
-            except Exception:
-                logger.exception(
-                    "Skipping chat cache population after resolution error",
-                    identifier=username,
-                )
-
-        await asyncio.gather(
-            *(
-                # FIXME: should be list[str] instead, and add support for list of chats to resolver as well.
-                resolve_chat(chat.username)
-                for chat in self._storage_manager.subscriptions.list_chats()
-            )
-        )
-
     async def start(self) -> None:
         await get_metric_recorder().start()
 
@@ -135,7 +117,7 @@ class TelegramForwarderBot:
 
         logger.info("Clients and monitor started")
 
-        await self._populate_chat_cache()
+        await self._chat_resolver.warm_cache(self._storage_manager.subscriptions.list_chats())
 
         async with asyncio.TaskGroup() as tasks:
             tasks.create_task(self._bot_client.run_until_disconnected())  # type: ignore

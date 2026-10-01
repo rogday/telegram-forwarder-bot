@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import random
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -12,6 +13,7 @@ from telethon.tl.functions import PingRequest
 from telethon.tl.types import (
     Channel,
     MessageReplyHeader,
+    PeerChannel,
     TypeMessageReplyHeader,
 )
 
@@ -24,7 +26,7 @@ from .metrics import (
     profileable,
     traceable,
 )
-from .storage import ChatTopic, Deduplicator, Subscriptions
+from .storage import ChatSubscription, ChatTopic, Deduplicator, Subscriptions
 
 logger = get_logger(__name__)
 
@@ -37,33 +39,60 @@ class ChatInfo:
     username: str
 
 
+def _chat_info(entity: object) -> ChatInfo | None:
+    if not isinstance(entity, Channel) or not entity.username:
+        return None
+    return ChatInfo(
+        id=entity.id,
+        forum=bool(entity.forum),
+        title=entity.title,
+        username=entity.username,
+    )
+
+
 class ChatResolver:
     def __init__(self, client: TelegramClient) -> None:
         self._client: TelegramClient = client
         # FIXME: Add cache updater with configurable interval
         self._cache: dict[int | str, ChatInfo | None] = dict()
 
-    async def _query_chat(self, identifier: int | str) -> ChatInfo | None:
-        chat = await self._client.get_entity(identifier)
-        if chat is None or not isinstance(chat, Channel) or not chat.username:
-            return None
-        return ChatInfo(
-            id=chat.id,
-            forum=bool(chat.forum),
-            title=chat.title,
-            username=chat.username,
-        )
+    def _remember(self, chat: ChatInfo) -> None:
+        self._cache[chat.id] = chat
+        self._cache[chat.username] = chat
+
+    async def warm_cache(self, chats: Iterable[ChatSubscription]) -> None:
+        """Caches the subscribed chats by ID.
+
+        Resolving a username always costs a request that Telegram rate-limits
+        heavily, and usernames can change or be taken over, so they are only
+        used for chats the session doesn't know.
+        """
+        for chat in chats:
+            try:
+                entity = await self._query_subscribed_chat(chat)
+            except Exception:
+                logger.exception("Skipping chat cache population after resolution error",
+                                 chat_id=chat.id, username=chat.username)
+                continue
+            chat_info = _chat_info(entity)
+            if chat_info is not None:
+                self._remember(chat_info)
+
+    async def _query_subscribed_chat(self, chat: ChatSubscription) -> object:
+        try:
+            return await self._client.get_entity(PeerChannel(chat.id))
+        except ValueError:  # The session doesn't know this chat
+            return await self._client.get_entity(chat.username)
 
     async def resolve_cached(self, identifier: int | str) -> ChatInfo | None:
         if identifier in self._cache:
             return self._cache[identifier]
 
         logger.warning("Chat resolution cache miss", identifier=identifier)
-        chat = await self._query_chat(identifier)
+        chat = _chat_info(await self._client.get_entity(identifier))
 
         if chat is not None:
-            self._cache[chat.id] = chat
-            self._cache[chat.username] = chat
+            self._remember(chat)
         else:
             self._cache[identifier] = None
 
