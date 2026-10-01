@@ -8,6 +8,7 @@
 # 3. ROOT FILES - Manually Allow
 !.gitignore
 !/README.md
+!/LICENSE
 !/requirements.txt
 !/requirements-dev.txt
 !/examples/static.yml

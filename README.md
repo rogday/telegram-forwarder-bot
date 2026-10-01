@@ -309,4 +309,4 @@ telegram-forwarder-bot/
 
 ## License
 
-This project is provided as-is for personal or internal use.
+MIT, see [LICENSE](LICENSE).
