@@ -1,11 +1,12 @@
 import logging
+import sys
 from pathlib import Path
 
 import pytest
 from loguru import logger
 
-import app_logging  # noqa: F401  # Routes standard logging through loguru
-from config import load_dynamic_config
+from app_logging import LogManager  # Also routes standard logging through loguru
+from config import LogManagerDynamicConfig, load_dynamic_config
 
 
 @pytest.fixture
@@ -49,3 +50,26 @@ def test_standard_logging_from_app_modules_is_attributed_to_app(
     assert record["name"] == "config"
     assert record["extra"]["source"] == "app"
     assert record["function"] == "load_dynamic_config"
+
+
+@pytest.fixture
+def restore_logging():
+    root_level = logging.getLogger().level
+    yield
+    # LogManager removes every loguru handler, including the default one
+    logger.remove()
+    logger.add(sys.stderr)
+    logging.getLogger().setLevel(root_level)
+
+
+def test_log_file_rotates_by_size(restore_logging, tmp_path: Path):
+    LogManager(LogManagerDynamicConfig(
+        log_file_path=tmp_path / "app.jsonl", max_bytes=4096, max_files=100))
+
+    for i in range(20):
+        logger.info("line {}", i)
+    logger.complete()  # Waits for the enqueued file sink
+    logger.remove()
+
+    # About 20 serialized lines of a few hundred bytes each fit into 2-3 files
+    assert 2 <= len(list(tmp_path.iterdir())) < 5

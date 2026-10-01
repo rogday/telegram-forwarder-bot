@@ -75,7 +75,7 @@ class LogManager:
 
         _logger.add(
             str(config.log_file_path),
-            rotation=f"{config.max_bytes / 2**20:.0f} MB",
+            rotation=config.max_bytes,
             retention=config.max_files,  # Keep only max_files rotated files
             compression=".gz",
             enqueue=True,
