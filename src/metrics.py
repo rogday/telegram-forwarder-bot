@@ -19,7 +19,6 @@ from influxdb_client_3 import (
     WritePrecision,
     write_client_options,
 )
-from influxdb_client_3.exceptions.exceptions import InfluxDBError
 
 from app_logging import get_logger
 from config import (
@@ -29,7 +28,6 @@ from config import (
     RuntimeInstrumentationManagerStaticConfig,
     RuntimeInstrumentationMode,
 )
-from retry import retry_with_timeout
 
 logger = get_logger(__name__)
 
@@ -172,7 +170,7 @@ class MetricRecorder(NoopMetricRecorder):
         loop = asyncio.get_running_loop()
         await asyncio.wait_for(
             loop.run_in_executor(None, self._influxdb_client.close),
-            self._dynamic_config.write_retry.timeout_seconds)
+            self._dynamic_config.close_timeout_seconds)
 
     def _send_batch(self, batch: list[MetricRecord]) -> None:
         points = []
@@ -196,16 +194,13 @@ class MetricRecorder(NoopMetricRecorder):
             return
 
         loop = asyncio.get_running_loop()
+        # The client batches: write() only queues points, and the library sends
+        # and retries them on its own thread. Only serialization can fail here.
         try:
-            await retry_with_timeout(
-                lambda: loop.run_in_executor(None, self._send_batch, batch),
-                self._dynamic_config.write_retry,
-                "InfluxDB write",
-                retry_on=(InfluxDBError,),
-            )
+            await loop.run_in_executor(None, self._send_batch, batch)
         except Exception:
             logger.exception(
-                "Dropping metrics batch after failed InfluxDB write",
+                "Dropping metrics batch that could not be queued for InfluxDB",
                 batch_size=len(batch),
             )
 

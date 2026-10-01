@@ -114,7 +114,7 @@ metric_recorder:
 
 The `.dynamic.yml` file contains runtime-reloadable settings such as the timezone, deduplication, metric intervals, request timeouts and retries, logging, and instrumentation. The bot reloads it when the file changes.
 
-Every Telegram request, including the ones Telethon makes to fetch missed updates, and every InfluxDB write has a timeout per attempt and is retried with exponential backoff. If the last attempt fails, the error is logged and the bot carries on.
+Every Telegram request, including the ones Telethon makes to fetch missed updates, has a timeout per attempt and is retried with exponential backoff. If the last attempt fails, the error is logged and the bot carries on.
 
 5. Start the telemetry stack (optional):
 

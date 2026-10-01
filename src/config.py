@@ -143,7 +143,7 @@ class MetricRecorderDynamicConfig(BaseModel):
     heartbeat_interval_seconds: PositiveInt = 30
     gc_interval_seconds: PositiveInt = 10
     metric_interval_seconds: PositiveInt = 20
-    write_retry: RetryDynamicConfig = Field(default_factory=RetryDynamicConfig)
+    close_timeout_seconds: PositiveFloat = 90
 
 
 class MonitorDynamicConfig(BaseModel):
