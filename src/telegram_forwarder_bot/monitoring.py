@@ -89,6 +89,8 @@ class MatchEvent:
     message_id: int
     date: datetime | None
     matched_keywords: set[str]
+    # time.time_ns() when the message arrived
+    received_at_ns: int
 
 
 class Monitor(RuntimeInstrumentationBase):
@@ -158,10 +160,10 @@ class Monitor(RuntimeInstrumentationBase):
             await asyncio.sleep(self._dynamic_config.status_log_interval_seconds)
             self._log_status()
 
-    # FIXME: Maybe add argument to decorator and somehow measure end to end latency from receive to send
     @profileable
     @traceable
-    async def _handle_new_message_impl(self, event: events.NewMessage.Event) -> None:
+    async def _handle_new_message_impl(self, event: events.NewMessage.Event,
+                                       received_at_ns: int) -> None:
         if self._subscriptions.paused():
             return
 
@@ -201,19 +203,22 @@ class Monitor(RuntimeInstrumentationBase):
         is_matched, matched_keywords = self._subscriptions.matcher.match(message_text)
         # Only matched texts are remembered, so other messages can't push them out of the cache
         is_duplicate = is_matched and self._deduplicator.seen_before(message_text)
-        get_metric_recorder().record(
-            MetricRecord(
-                table_name="payload_stats",
-                tags=dict(metric_type="message_size"),
-                fields=dict(
-                    size=len(message_text),
-                    is_matched=is_matched,
-                    is_duplicate=is_duplicate,
-                    matched_keyword_count=len(matched_keywords),
-                    message_link=chat_topic.message_link(message.id),
-                ),
-            )
+        payload_stats = dict(
+            size=len(message_text),
+            is_matched=is_matched,
+            is_duplicate=is_duplicate,
+            matched_keyword_count=len(matched_keywords),
+            message_link=chat_topic.message_link(message.id),
         )
+        if message.date is not None:
+            # How late Telegram delivered the message; message.date has 1 s resolution
+            payload_stats["telegram_delay_ms"] = (
+                received_at_ns / 1e6 - message.date.timestamp() * 1000)
+        get_metric_recorder().record(MetricRecord(
+            table_name="payload_stats",
+            tags=dict(metric_type="message_size"),
+            fields=payload_stats,
+        ))
         if not is_matched or is_duplicate:
             return
 
@@ -225,6 +230,7 @@ class Monitor(RuntimeInstrumentationBase):
                     message_id=message.id,
                     date=message.date,
                     matched_keywords=matched_keywords,
+                    received_at_ns=received_at_ns,
                 )
             )
         except asyncio.QueueFull:
@@ -235,10 +241,11 @@ class Monitor(RuntimeInstrumentationBase):
             )
 
     async def handle_new_message(self, event: events.NewMessage.Event) -> None:
+        received_at_ns = time.time_ns()
         self._last_message_at = time.monotonic()
         self._messages_handled += 1
         try:
-            await self._handle_new_message_impl(event)
+            await self._handle_new_message_impl(event, received_at_ns)
         except Exception:
             logger.exception("Monitor error")
 

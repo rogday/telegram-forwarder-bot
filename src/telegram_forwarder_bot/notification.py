@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from types import CoroutineType
 from zoneinfo import ZoneInfo
 
@@ -8,6 +9,7 @@ from telethon import TelegramClient
 
 from .app_logging import get_logger
 from .config import NotifierDynamicConfig
+from .metrics import MetricRecord, get_metric_recorder
 from .monitoring import MatchEvent
 
 logger = get_logger(__name__)
@@ -54,6 +56,7 @@ class Notifier:
         try:
             while True:
                 event = await self._match_queue.get()
+                status = "failed"
                 try:
                     text = _format_match(event, self._dynamic_config.timezone)
                     await self._client.send_message(
@@ -61,9 +64,17 @@ class Notifier:
                         message=text,
                         parse_mode="md",
                     )
+                    status = "sent"
                 except Exception:
                     logger.exception("Admin notification message send failed")
                 finally:
                     self._match_queue.task_done()
+                # From receiving the message to Telegram acknowledging the notification,
+                # or to the failure
+                get_metric_recorder().record(MetricRecord(
+                    table_name="delivery_stats",
+                    tags=dict(status=status),
+                    fields=dict(latency_ns=time.time_ns() - event.received_at_ns),
+                ))
         except asyncio.CancelledError:
             pass

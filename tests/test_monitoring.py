@@ -1,5 +1,6 @@
 import asyncio
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock, patch
 
 from telethon import utils
@@ -103,7 +104,7 @@ def test_status_log_counts_messages_since_previous_line():
     assert logger.info.call_args.kwargs["status"] is True
 
 
-def test_repost_is_recorded_as_duplicate_and_not_notified():
+def test_records_telegram_delay_and_reposts_as_duplicates():
     subscriptions = Subscriptions()
     subscriptions.add_keyword_group(KeywordGroup.from_lists(["python"], []))
     subscriptions.add_chat(ChatTopic(id=123, topic_id=None, username="chat"))
@@ -112,7 +113,8 @@ def test_repost_is_recorded_as_duplicate_and_not_notified():
     monitor = Monitor(Mock(), subscriptions, Deduplicator(StorageManagerDynamicConfig()),
                       chat_resolver, MonitorStaticConfig(), MonitorDynamicConfig())
     event = Mock(is_channel=True, chat_id=utils.get_peer_id(PeerChannel(123)))
-    event.message = Mock(message="python job", id=42, reply_to=None)
+    sent_at = datetime.now(UTC) - timedelta(seconds=2)
+    event.message = Mock(message="python job", id=42, reply_to=None, date=sent_at)
 
     async def receive_twice():
         await monitor.handle_new_message(event)
@@ -124,4 +126,5 @@ def test_repost_is_recorded_as_duplicate_and_not_notified():
     records = [c.args[0].fields for c in get_recorder.return_value.record.call_args_list]
     assert [(r["is_matched"], r["is_duplicate"]) for r in records] == [(True, False), (True, True)]
     assert records[0]["message_link"] == "https://t.me/chat/42"
+    assert 2000 <= records[0]["telegram_delay_ms"] < 3000
     assert monitor.get_match_queue().qsize() == 1

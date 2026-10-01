@@ -50,6 +50,7 @@
 !/tests/storage/test_persistence.py
 !/tests/test_bot.py
 !/tests/test_admin_commands.py
+!/tests/test_notification.py
 !/tests/test_config.py
 !/tests/test_retry.py
 !/tests/test_telegram_client.py
