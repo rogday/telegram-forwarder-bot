@@ -35,7 +35,10 @@
 !/src/retry.py
 !/src/telegram_client.py
 
-# 5. TEST FILES - Manually Allow
+# 5. TOOLS - Manually Allow
+!/tools/migrate_storage.py
+
+# 6. TEST FILES - Manually Allow
 !/tests/__init__.py
 !/tests/conftest.py
 !/tests/storage/__init__.py
@@ -48,4 +51,6 @@
 !/tests/test_retry.py
 !/tests/test_telegram_client.py
 !/tests/test_app_logging.py
+!/tests/test_migrate_storage.py
+!/tests/fixtures/pickled_storage.db
 !/pytest.ini

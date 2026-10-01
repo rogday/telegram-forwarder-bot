@@ -280,6 +280,8 @@ telegram-forwarder-bot/
 │   ├── compose.env           # Portable Compose path and port defaults
 │   ├── static.yml            # Credentials and startup configuration
 │   └── dynamic.yml           # Runtime-reloadable configuration
+├── tools/
+│   └── migrate_storage.py    # Converts a pickled storage.db to JSON
 └── src/
     ├── main.py               # Async application bootstrap
     ├── config.py             # YAML configuration models and loaders
